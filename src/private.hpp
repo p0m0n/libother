@@ -82,12 +82,22 @@ static constexpr int64_t MaxTicksTimeSpan = std::numeric_limits<int64_t>::max();
 static constexpr int64_t FILE_TIME_OFFSET = 504911232000000000LL;
 
 // Макрос для накопление тактов.
-#define ADDED_TICKS(RESULT,DAYS,PER_DAY,HOURS,PER_HOUR,MINUTES,PER_MIN,SECONDS,PER_SEC,MS,PER_MS)  \
-    do                                                                                             \
-    {                                                                                              \
-       (RESULT) = (static_cast<int64_t>(DAYS)    * (PER_DAY))  +                                   \
-                  (static_cast<int64_t>(HOURS)   * (PER_HOUR)) +                                   \
-                  (static_cast<int64_t>(MINUTES) * (PER_MIN))  +                                   \
-                  (static_cast<int64_t>(SECONDS) * (PER_SEC))  +                                   \
-			      (static_cast<int64_t>(MS)      * (PER_MS));                                      \
+#define ADDED_TICKS(RESULT, DAYS, HOURS, MINUTES, SECONDS, MS)                          \
+    do                                                                                  \
+    {                                                                                   \
+       (RESULT) = (static_cast<int64_t>(DAYS)    * (TICKS_PER_DAY))     +               \
+                  (static_cast<int64_t>(HOURS)   * (TICKS_PER_HOUR))    +               \
+                  (static_cast<int64_t>(MINUTES) * (TICKS_PER_MINUTE))  +               \
+                  (static_cast<int64_t>(SECONDS) * (TICKS_PER_SECOND))  +               \
+			      (static_cast<int64_t>(MS)      * (TICKS_PER_MILLISECOND));            \
+    } while (0)
+
+#define FROM_TICKS(TICKS, DAYS, HOURS, MINUTES, SECONDS, MS)                            \
+    do                                                                                  \
+    {                                                                                   \
+        (DAYS)    = ((TICKS)  / TICKS_PER_DAY);                                         \
+        (HOURS)   = (((TICKS) / TICKS_PER_HOUR) % 24);                                  \
+        (MINUTES) = (((TICKS) / TICKS_PER_MINUTE) % 60);                                \
+        (SECONDS) = (((TICKS) / TICKS_PER_SECOND) % 60);                                \
+        (MS)      = (((TICKS) / TICKS_PER_MILLISECOND) % 1000);                         \
     } while (0)

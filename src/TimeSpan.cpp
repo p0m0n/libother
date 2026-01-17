@@ -33,7 +33,7 @@ namespace other::time
         int64_t ticks = 0;
         
         // Используем макрос/функцию для сложения компонентов.
-        ADDED_TICKS(ticks, days, TICKS_PER_DAY, hours, TICKS_PER_HOUR, minutes, TICKS_PER_MINUTE, seconds, TICKS_PER_SECOND, milliseconds, TICKS_PER_MILLISECOND);
+        ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
         
         // Проверка границ допустимого диапазона.
         if (ticks < MinTicksTimeSpan || ticks > MaxTicksTimeSpan)
@@ -154,12 +154,10 @@ namespace other::time
             ticks = (_ticks == MinTicksTimeSpan) ? MaxTicksTimeSpan : -_ticks;
         }
 
+        int64_t day = 0, hour = 0, minute = 0, second = 0, millisecond = 0;
+
         // Предварительный расчет компонентов (всегда положительные)
-        int64_t day    =  ticks / TICKS_PER_DAY;
-        int64_t hour   = (ticks / TICKS_PER_HOUR) % 24;
-        int64_t minute = (ticks / TICKS_PER_MINUTE) % 60;
-        int64_t second = (ticks / TICKS_PER_SECOND) % 60;
-        int64_t ms     = (ticks / TICKS_PER_MILLISECOND) % 1000;
+        FROM_TICKS(ticks, day, hour, minute, second, millisecond);
 
         for (size_t i = 0; i < format.length(); ++i)
         {
@@ -185,7 +183,7 @@ namespace other::time
             }
             else if (format.compare(i, 3, "fff") == 0) 
             {
-                ss << std::setw(3) << std::setfill('0') << ms;
+                ss << std::setw(3) << std::setfill('0') << millisecond;
                 i += 2;
             }
             else 
@@ -339,7 +337,7 @@ namespace other::time
 
             int64_t ticks = 0;
 			// Используем макрос/функцию для сложения компонентов.
-			ADDED_TICKS(ticks, days, TICKS_PER_DAY, hours, TICKS_PER_HOUR, minutes, TICKS_PER_MINUTE, seconds, TICKS_PER_SECOND, milliseconds, TICKS_PER_MILLISECOND);
+			ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
 
             // Применяем знак, если он был.
             if (negative)
@@ -506,7 +504,7 @@ namespace other::time
 			
             int64_t ticks = 0;
 			// Используем макрос/функцию для сложения компонентов.
-            ADDED_TICKS(ticks, days, TICKS_PER_DAY, hours, TICKS_PER_HOUR, minutes, TICKS_PER_MINUTE, seconds, TICKS_PER_SECOND, milliseconds, TICKS_PER_MILLISECOND);
+            ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
 
             // Применяем знак, если он был.
             if (negative)

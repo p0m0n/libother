@@ -113,6 +113,7 @@ namespace other::time
     {
         return (_ticks == value._ticks);
     }
+	
     // Преобразование в строку. Формат: [d.]hh:mm:ss[.fff]
     std::string TimeSpan::ToString() const
     {

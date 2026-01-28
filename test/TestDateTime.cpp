@@ -188,30 +188,20 @@ int main()
     PrintAllFormats();
 	
 
-    //DateTime dt2;
-    //{
-    //    // Тест оператора ввода.
-    //    std::cout << "\nВведите время (hh:mm:ss): ";
-    //    if (!(std::cin >> dt2))
-    //    {
-    //        std::cerr << "Ошибка: Неверный формат времени!" << std::endl;
-    //        std::cin.clear(); // Сброс состояния ошибки
-    //        std::cin.ignore(1000, '\n'); // Очистка буфера
-    //    }
-
-    //    // Тест оператора вывода.
-    //    std::cout << dt2 << std::endl;
-    //}
-
-    /*DateTime dt = DateTime::Now();
+    DateTime dt2;
     {
-        dt.Serialize("DateTime.bin");
-        std::cout << "Serialize   => " << dt << std::endl;
+        // Тест оператора ввода.
+        std::cout << "\nВведите время (hh:mm:ss): ";
+        if (!(std::cin >> dt2))
+        {
+            std::cerr << "Ошибка: Неверный формат времени!" << std::endl;
+            std::cin.clear(); // Сброс состояния ошибки
+            std::cin.ignore(1000, '\n'); // Очистка буфера
+        }
 
-        dt = DateTime::Zero;
+        // Тест оператора вывода.
+        std::cout << dt2 << std::endl;
+    }
 
-        dt.Deserialize("DateTime.bin");
-        std::cout << "Deserialize => " << dt << std::endl;
-    }*/
     return 0;
 }

@@ -602,46 +602,7 @@ namespace other::time
         }
         return *this;
     }
-
-    void TimeSpan::Serialize(const std::string& filename)
-    {
-        std::ofstream out(filename, std::ios::binary);
-
-        if (!out.is_open())
-        {
-            throw std::ios_base::failure("Cannot open file: " + filename);
-        }
-
-        // Записываем 8 байт (int64_t) напрямую из памяти
-        if (!out.write(reinterpret_cast<const char*>(&_ticks), sizeof(_ticks)))
-        {
-            throw std::ios_base::failure("Write error out: " + filename);
-        }
-
-        out.close();
-    }
-
-    void TimeSpan::Deserialize(const std::string& filename)
-    {
-        int64_t temp = 0;
-
-        std::ifstream in(filename, std::ios::binary);
-
-        if (!in.is_open())
-        {
-            throw std::ios_base::failure("Cannot open file: " + filename);
-        }
-
-        // Читаем 8 байт обратно в переменную
-        if (!in.read(reinterpret_cast<char*>(&temp), sizeof(temp)))
-        {
-            throw std::ios_base::failure("Read error in: " + filename);
-        }
-
-        _ticks = temp;
-        in.close();
-    }
-
+	
     std::ostream& operator<<(std::ostream& os, const TimeSpan& ts)
     {
         // Мы просто передаем строковое представление в поток.

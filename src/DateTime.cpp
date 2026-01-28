@@ -1128,51 +1128,6 @@ namespace other::time
         return *this;
     }
 
-    void DateTime::Serialize(const std::string& filename)
-    {
-        std::ofstream out(filename, std::ios::binary);
-
-        if (!out.is_open())
-        {
-            throw std::ios_base::failure("Cannot open file: " + filename);
-        }
-
-        // Записываем тики (8 байт)
-        out.write(reinterpret_cast<const char*>(&_ticks), sizeof(_ticks));
-
-        // Записываем Kind (например, как int, чтобы знать Utc или нет)
-        int kindValue = static_cast<int>(_kind) - 1;
-        out.write(reinterpret_cast<const char*>(&kindValue), sizeof(kindValue));
-
-        out.close();
-    }
-
-    void DateTime::Deserialize(const std::string& filename)
-    {
-        std::ifstream in(filename, std::ios::binary);
-
-        if (!in.is_open())
-        {
-            throw std::ios_base::failure("Cannot open file: " + filename);
-        }
-
-        int64_t tempTicks = 0;
-        int     kindValue = 0;
-
-        in.read(reinterpret_cast<char*>(&tempTicks), sizeof(tempTicks));
-        in.read(reinterpret_cast<char*>(&kindValue), sizeof(kindValue));
-
-       /* if (in.gcount() < static_cast<std::streamsize>(sizeof(tempTicks))) 
-        {
-            throw std::runtime_error("File is corrupted or too small");
-        }*/
-
-        _ticks = tempTicks;
-        _kind  = static_cast<DateTimeKind>(static_cast<int>(kindValue) + 1);
-
-        in.close();
-    }
-
     std::ostream& operator<<(std::ostream& os, const DateTime& ts)
     {
         // Мы просто передаем строковое представление в поток.

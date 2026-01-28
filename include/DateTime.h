@@ -669,20 +669,6 @@ namespace other::time
         DateTime& operator=(const DateTime& value);
         DateTime& operator=(DateTime&& value) noexcept;
 
-        /**@brief Записывает текущий экземпляр DateTime в файл в бинарном виде.
-         *
-         * @param [in] filename: Путь к файлу для записи.
-         *
-         * @exception std::ios_base::failure Выбрасывается, если файл не удалось открыть или произошла ошибка записи.
-         */
-        void Serialize(const std::string& filename);
-        /**@brief Читает DateTime из указанного бинарного файла.
-         *
-         * @param [in] filename: Путь к файлу для чтения.
-         *
-         * @exception std::ios_base::failure Выбрасывается, если файл не найден или данные повреждены.
-         */
-        void Deserialize(const std::string& filename);
         /**@brief Записывает текстовое представление интервала в поток вывода.
          *
          * @param os Ссылка на поток вывода (например, std::cout или std::ofstream).

@@ -53,23 +53,23 @@ static void TestsDateTime()
     // 1. Конструкторы и базовые свойства
     {
         DateTime dt0(2025, 12, 25);
-        bool c0 = (dt0.Years() == 2025 && dt0.Months() == 12 && dt0.Days() == 25);
+        bool c0 = (dt0.Year() == 2025 && dt0.Month() == 12 && dt0.Day() == 25);
         PrintResult("Constructor (Y, M, D)", c0);
 
         DateTime dt1(2025, 12, 25, 10, 30, 0);
-        bool c1 = (dt1.Years() == 2025 && dt1.Months() == 12 && dt1.Days() == 25 && dt1.Hours() == 10 && dt1.Minutes() == 30);
+        bool c1 = (dt1.Year() == 2025 && dt1.Month() == 12 && dt1.Day() == 25 && dt1.Hour() == 10 && dt1.Minute() == 30);
         PrintResult("Constructor (Y, M, D, H, M, S)", c1);
 
         DateTime dt2(dt1.Ticks(), DateTimeKind::Utc);
         PrintResult("Constructor (Ticks, Kind)", dt2.Ticks() == dt1.Ticks() && dt2.Kind() == DateTimeKind::Utc);
 
-        PrintResult("Constants (Min/Max/Zero)", DateTime::MinValue.Years() == 1 && DateTime::MaxValue.Years() == 9999);
+        PrintResult("Constants (Min/Max/Zero)", DateTime::MinValue.Year() == 1 && DateTime::MaxValue.Year() == 9999);
     }
 
     // 2. Статические методы (Now, Today) и Календарь
     {
         DateTime today = DateTime::Today();
-        PrintResult("Static Today (Time is Midnight)", today.Hours() == 0 && today.Minutes() == 0);
+        PrintResult("Static Today (Time is Midnight)", today.Hour() == 0 && today.Minute() == 0);
 
         PrintResult("IsLeapYear (2000 - Yes, 1900 - No)", DateTime::IsLeapYear(2000) && !DateTime::IsLeapYear(1900));
         PrintResult("DaysInMonth (Feb 2024 - 29, Feb 2023 - 28)", DateTime::DaysInMonth(2024, 2) == 29 && DateTime::DaysInMonth(2023, 2) == 28);
@@ -89,16 +89,16 @@ static void TestsDateTime()
         DateTime dt(2024, 1, 31); // Конец января
         DateTime nextMonth = dt.AddMonths(1);
         // Ожидаем 29 февраля, так как 2024 — високосный
-        PrintResult("AddMonths (Jan 31 + 1 month -> Feb 29)", nextMonth.Months() == 2 && nextMonth.Days() == 29);
+        PrintResult("AddMonths (Jan 31 + 1 month -> Feb 29)", nextMonth.Month() == 2 && nextMonth.Day() == 29);
 
         DateTime leapDay(2024, 2, 29);
         DateTime nextYear = leapDay.AddYears(1);
         // Ожидаем 28 февраля 2025
-        PrintResult("AddYears (Leap Day + 1 year -> Feb 28)", nextYear.Years() == 2025 && nextYear.Days() == 28);
+        PrintResult("AddYears (Leap Day + 1 year -> Feb 28)", nextYear.Year() == 2025 && nextYear.Day() == 28);
 
         TimeSpan ts = TimeSpan::FromHours(25);
         DateTime afterTs = dt.Add(ts);
-        PrintResult("Add(TimeSpan 25h)", afterTs.Days() == 1 && afterTs.Months() == 2 && afterTs.Hours() == 1);
+        PrintResult("Add(TimeSpan 25h)", afterTs.Day() == 1 && afterTs.Month() == 2 && afterTs.Hour() == 1);
     }
 
     // 5. Разность дат (Subtract)
@@ -125,7 +125,7 @@ static void TestsDateTime()
         PrintResult("ToUnixTimeSeconds (Epoch)", unixEpoch.ToUnixTimeSeconds() == 0);
 
         DateTime fromUnix = DateTime::FromUnixTimeSeconds(1704067200); // 2024-01-01
-        PrintResult("FromUnixTimeSeconds", fromUnix.Years() == 2024 && fromUnix.Months() == 1 && fromUnix.Days() == 1);
+        PrintResult("FromUnixTimeSeconds", fromUnix.Year() == 2024 && fromUnix.Month() == 1 && fromUnix.Day() == 1);
     }
 
     // 7. Windows FileTime и OLE Date (Excel)
@@ -136,7 +136,7 @@ static void TestsDateTime()
 
         // OLE Automation Date
         DateTime oaEpoch(1899, 12, 30, 0, 0, 0); // 0.0 в OLE
-        PrintResult("ToOADate/FromOADate", oaEpoch.ToOADate() == 0.0 && DateTime::FromOADate(0.5).Hours() == 12);
+        PrintResult("ToOADate/FromOADate", oaEpoch.ToOADate() == 0.0 && DateTime::FromOADate(0.5).Hour() == 12);
     }
 
     // 8. Форматирование и Парсинг
@@ -150,7 +150,7 @@ static void TestsDateTime()
         PrintResult("ToString(format)", custom == "2026-01-08 14:30");
 
         bool p2 = DateTime::TryParseExact("2026/01/08", "yyyy/MM/dd", parsed);
-        PrintResult("TryParseExact", p2 && parsed.Months() == 1);
+        PrintResult("TryParseExact", p2 && parsed.Month() == 1);
     }
 
     // 9. Операторы

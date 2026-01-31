@@ -105,7 +105,7 @@ namespace other::time
     int64_t DateTime::Ticks() const { return _ticks; }
     DateTimeKind DateTime::Kind() const { return _kind; }
 
-    int DateTime::Years() const
+    int DateTime::Year() const
     {
         int64_t n = _ticks / TICKS_PER_DAY;
         int y400 = (int)(n / DAYS_PER_400YEARS);
@@ -126,9 +126,9 @@ namespace other::time
         return y400 * 400 + y100 * 100 + y4 * 4 + y1 + 1;
     }
 
-    int DateTime::Months() const
+    int DateTime::Month() const
     {
-        int year = Years();
+        int year = Year();
         int dayOfYear = DayOfYear();
         const int* days = DateTime::IsLeapYear(year) ? DaysToMonth366 : DaysToMonth365;
 
@@ -138,9 +138,9 @@ namespace other::time
         return m;
     }
 
-    int DateTime::Days() const
+    int DateTime::Day() const
     {
-        int y = Years();
+        int y = Year();
         int dayOfYear = DayOfYear();
         const int* days = DateTime::IsLeapYear(y) ? DaysToMonth366 : DaysToMonth365;
 
@@ -151,10 +151,10 @@ namespace other::time
         return dayOfYear - days[m - 1];
     }
 
-    int DateTime::Hours() const { return (int)((_ticks / TICKS_PER_HOUR) % 24); }
-    int DateTime::Minutes() const { return (int)((_ticks / TICKS_PER_MINUTE) % 60); }
-    int DateTime::Seconds() const { return (int)((_ticks / TICKS_PER_SECOND) % 60); }
-    int DateTime::Milliseconds() const { return (int)((_ticks / TICKS_PER_MILLISECOND) % 1000); }
+    int DateTime::Hour() const { return (int)((_ticks / TICKS_PER_HOUR) % 24); }
+    int DateTime::Minute() const { return (int)((_ticks / TICKS_PER_MINUTE) % 60); }
+    int DateTime::Second() const { return (int)((_ticks / TICKS_PER_SECOND) % 60); }
+    int DateTime::Millisecond() const { return (int)((_ticks / TICKS_PER_MILLISECOND) % 1000); }
 
     DayOfWeek DateTime::GetDayOfWeek() const
     {
@@ -193,7 +193,7 @@ namespace other::time
         int totalDays = static_cast<int>(_ticks / TICKS_PER_DAY);
 
         // Вычисляем год (аналогично логике Years())
-        int year = Years();
+        int year = Year();
 
         // Находим день года (1-366)
         // Вычитаем из общего кол-ва дней все дни полных лет до текущего
@@ -269,9 +269,9 @@ namespace other::time
             throw std::out_of_range("Months out of range");
 
         // Получаем компоненты.
-        int year  = Years();
-        int month = Months();
-        int day   = Days();
+        int year  = Year();
+        int month = Month();
+        int day   = Day();
 
         int i = month - 1 + months;
         if (i >= 0)
@@ -290,7 +290,7 @@ namespace other::time
         if (day > daysInMonth)
             day = daysInMonth;
 
-        return DateTime(year, month, day, Hours(), Minutes(), Seconds(), Milliseconds(), _kind);
+        return DateTime(year, month, day, Hour(), Minute(), Second(), Millisecond(), _kind);
     }
 
     DateTime DateTime::AddYears(int years) const
@@ -299,9 +299,9 @@ namespace other::time
             throw std::out_of_range("Years out of range");
 
         // Получаем компоненты.
-        int year  = Years();
-        int month = Months();
-        int day   = Days();
+        int year  = Year();
+        int month = Month();
+        int day   = Day();
 
         // Рассчитываем новый год.
         int newYear = year + years;
@@ -313,7 +313,7 @@ namespace other::time
         }
 
         // Собираем новую дату, сохраняя время и Kind.
-        return DateTime(newYear, month, day, Hours(), Minutes(), Seconds(), Milliseconds(), _kind);
+        return DateTime(newYear, month, day, Hour(), Minute(), Second(), Millisecond(), _kind);
     }
 
     DateTime DateTime::Subtract(const TimeSpan& value) const
@@ -485,47 +485,47 @@ namespace other::time
             // Год
             if (format.compare(i, 4, "yyyy") == 0)
             {
-                result += std::to_string(Years());
+                result += std::to_string(Year());
                 i += 3;
             }
             else if (format.compare(i, 2, "yy") == 0)
             {
-                int y = Years() % 100;
+                int y = Year() % 100;
                 result += (y < 10 ? "0" : "") + std::to_string(y);
                 i += 1;
             }
             // Месяц
             else if (format.compare(i, 2, "MM") == 0)
             {
-                int m = Months();
+                int m = Month();
                 result += (m < 10 ? "0" : "") + std::to_string(m);
                 i += 1;
             }
             // День
             else if (format.compare(i, 2, "dd") == 0)
             {
-                int d = Days();
+                int d = Day();
                 result += (d < 10 ? "0" : "") + std::to_string(d);
                 i += 1;
             }
             // Часы
             else if (format.compare(i, 2, "HH") == 0)
             {
-                int h = Hours();
+                int h = Hour();
                 result += (h < 10 ? "0" : "") + std::to_string(h);
                 i += 1;
             }
             // Минуты
             else if (format.compare(i, 2, "mm") == 0)
             {
-                int m = Minutes();
+                int m = Minute();
                 result += (m < 10 ? "0" : "") + std::to_string(m);
                 i += 1;
             }
             // Секунды
             else if (format.compare(i, 2, "ss") == 0)
             {
-                int s = Seconds();
+                int s = Second();
                 result += (s < 10 ? "0" : "") + std::to_string(s);
                 i += 1;
             }
@@ -717,7 +717,7 @@ namespace other::time
 
                 // Дозаполняем отсутствующее
                 if (year == 0)
-                    year = DateTime::Now().Years();
+                    year = DateTime::Now().Year();
                 
                 if (day == 0)
                     day = 1;
@@ -734,7 +734,7 @@ namespace other::time
                     DateTime now = DateTime::Now();
 
                     // Для чистого времени используем сегодняшнюю дату.
-                    result = DateTime(now.Years(), now.Months(), now.Days(), hour, minute, second);
+                    result = DateTime(now.Year(), now.Month(), now.Day(), hour, minute, second);
                     return true;
                 }
             }
@@ -1165,12 +1165,12 @@ namespace other::time
         std::ostringstream oss;
 
         // Предварительно получаем все компоненты, чтобы не вызывать методы многократно
-        int year   = dt.Years();
-        int month  = dt.Months();
-        int day    = dt.Days();
-        int hour   = dt.Hours();
-        int minute = dt.Minutes();
-        int second = dt.Seconds();
+        int year   = dt.Year();
+        int month  = dt.Month();
+        int day    = dt.Day();
+        int hour   = dt.Hour();
+        int minute = dt.Minute();
+        int second = dt.Second();
         int dow    = static_cast<int>(dt.GetDayOfWeek());
 
         // Вспомогательные лямбда-функции для часто повторяющихся элементов (внутри функции)

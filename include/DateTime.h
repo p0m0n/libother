@@ -155,43 +155,43 @@ namespace other::time
          *
          * @return Год в диапазоне от 1 до 9999.
          */
-        int Years() const;
+        int Year() const;
         /**
          * @brief Возвращает месяц.
          *
          * @return Месяц в диапазоне от 1 до 12.
          */
-        int Months() const;
+        int Month() const;
         /**
          * @brief Возвращает день.
          *
          * @return День в диапазоне от 1 до 31.
          */
-        int Days() const;
+        int Day() const;
         /**
          * @brief Возвращает час.
          *
          * @return Часы в диапазоне от 0 до 23.
          */
-        int Hours() const;
+        int Hour() const;
         /**
          * @brief Возвращает минуты.
          *
          * @return Минуты в диапазоне от 0 до 59.
          */
-        int Minutes() const;
+        int Minute() const;
         /**
          * @brief Возвращает секунды.
          *
          * @return Секунды в диапазоне от 0 до 59.
          */
-        int Seconds() const;
+        int Second() const;
         /**
          * @brief Возвращает миллисекунды.
          *
          * @return Миллисекунды в диапазоне от 0 до 999.
          */
-        int Milliseconds() const;
+        int Millisecond() const;
         /**
          * @brief Возвращает день недели.
          *

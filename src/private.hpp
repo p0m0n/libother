@@ -1,16 +1,5 @@
-#include <ctime>
-#include <stdexcept>
-#include <fstream>
-#include <iomanip>
-#include <sstream>
-#include <iostream>
-#include <chrono>
-#include <numeric>
-#include <map>
-#include <regex>
+#include "Define.h"
 
-#undef min
-#undef max
 
 /** @brief Количество секунд в одной минуте. */
 static constexpr int64_t SECS_PER_MINUTE       = 60LL;

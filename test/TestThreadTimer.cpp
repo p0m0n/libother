@@ -1,5 +1,4 @@
-﻿#include <iostream>
-#include "ThreadTimer.h"
+﻿#include "ThreadTimer.h"
 
 using namespace other::time;
 using namespace other::time::timer;

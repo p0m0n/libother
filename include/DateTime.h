@@ -1,6 +1,7 @@
 #ifndef _OTHER_DATETIME_H_
 #define _OTHER_DATETIME_H_
 
+#include "Define.h"
 #include "TimeSpan.h"
 
 

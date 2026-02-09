@@ -1,8 +1,4 @@
-﻿#include <iostream>
-#include <memory>
-#include <vector>
-#include <thread>
-#include "Timer.h"
+﻿#include "Timer.h"
 
 using namespace other::time;
 using namespace other::time::timer;

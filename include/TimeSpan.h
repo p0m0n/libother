@@ -1,9 +1,7 @@
 #ifndef _OTHER_TIMESPAN_H_
 #define _OTHER_TIMESPAN_H_
 
-#include <string>
-#include <vector>
-#include <fstream>
+#include "Define.h"
 
 
 namespace other::time

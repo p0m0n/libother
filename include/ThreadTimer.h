@@ -1,9 +1,8 @@
 #ifndef _OTHER_THREAD_TIMER_H_
 #define _OTHER_THREAD_TIMER_H_
 
+#include "Define.h"
 #include "Timer.h"
-#include <mutex>
-#include <thread>
 
 
 namespace other::time::timer

@@ -710,7 +710,7 @@ namespace other::time
                         else if (word.find(':') != std::string::npos) 
                         {
                             // Если в слове есть ':', пробуем достать время
-                            sscanf_s(word.c_str(), "%2d:%2d:%2d", &hour, &minute, &second);
+                            m_sscanf(word.c_str(), "%2d:%2d:%2d", &hour, &minute, &second);
                         }
                     }
                 }
@@ -729,7 +729,7 @@ namespace other::time
             // --- ПРОВЕРКА 4: Чистое время (19:24 или 19:24:08) ---
             if (input.find(':') != std::string::npos && input.find_first_of(".-") == std::string::npos)
             {
-                if (sscanf_s(input.c_str(), "%d:%d:%d", &hour, &minute, &second) >= 2) 
+                if (m_sscanf(input.c_str(), "%d:%d:%d", &hour, &minute, &second) >= 2)
                 {
                     DateTime now = DateTime::Now();
 

@@ -1,8 +1,8 @@
 #ifndef _OTHER_TIMER_H_
 #define _OTHER_TIMER_H_
 
+#include "Define.h"
 #include "DateTime.h"
-#include <map>
 
 namespace other::time::timer
 {

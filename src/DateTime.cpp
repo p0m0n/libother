@@ -207,13 +207,13 @@ namespace other::time
         // Ищем в массиве, в какой промежуток попадает dayOfYear
         for (int i = 1; i <= 12; i++)
         {
-            if (dayOfYear < daysToMonth[i])
+            if (dayOfYear <= daysToMonth[i])
             {
                 return static_cast<MonthOfYear>(i);
             }
         }
 
-        return static_cast<MonthOfYear>(0); // На случай ошибки
+        return MonthOfYear::December; // На случай ошибки
     }
 
     DateTime DateTime::Date() const

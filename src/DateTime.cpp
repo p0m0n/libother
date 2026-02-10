@@ -885,7 +885,7 @@ namespace other::time
         }
 
         // Если цикл завершился и ни один формат не подошел
-        throw std::invalid_argument("DateTime.TryParseExact: String does not match any of the provided formats.");
+        return false;
     }
 
     int64_t DateTime::ToUnixTimeSeconds() const

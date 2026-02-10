@@ -429,6 +429,14 @@ namespace other::time
 
     int DateTime::DaysInMonth(int year, int month)
     {
+        // Проверка месяца.
+        if (month < 1 || month > 12)
+            return 0;
+
+        // Проверка года.
+        if (year < 1 || year > 9999) 
+            return 0;
+
         // Выбираем нужный массив (високосный/обычный)
         const int* daysToMonth = DateTime::IsLeapYear(year) ? DaysToMonth366 : DaysToMonth365;
 

@@ -17,7 +17,7 @@ namespace other::time::timer
     {
     private:
         mutable std::mutex      _mutex;      // Мьютекс для синхронизации доступа к данным родительского класса Timer
-        std::shared_ptr<Timer>  _parent;     // Указатель на ядро логики таймеров
+        std::shared_ptr<Timer>  _timer;      // Указатель на ядро логики таймеров
         std::condition_variable _cond_v;     // Используется для эффективного управления паузой и пробуждением потока
         std::thread             _thread;     // Фоновый рабочий поток
         std::atomic<bool>       _running;    // Атомарный флаг состояния жизненного цикла потока
@@ -34,7 +34,7 @@ namespace other::time::timer
          * Поток не запускается автоматически при создании объекта.
          * Для начала работы необходимо явно вызвать метод Start().
          */
-        ThreadTimer(std::shared_ptr<Timer> parent);
+        ThreadTimer(std::shared_ptr<Timer> timer);
         /**
          * @brief Деструктор класса ThreadTimer.
          * Обеспечивает безопасное завершение фонового потока. Автоматически вызывает Stop(),
@@ -77,13 +77,12 @@ namespace other::time::timer
 		 *
          * @param [in] startTime: Время активации (до этого момента таймер игнорируется).
          * @param [in] endTime:   Время первого срабатывания.
-         * @param [in] interval:  Интервал повторения (TimeSpan::Zero для одиночного срабатывания).
          * @param [in] callable:  Объект с логикой обратного вызова (колбэк).
          * @param [in] title:     Читаемое название для поиска и отладки (чувствительно к регистру).
 		 *
          * @return Уникальный 64-битный идентификатор созданного таймера.
          */
-        uint64_t CreateTimer(const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval = TimeSpan::Zero, std::shared_ptr<ICallable> callable = nullptr, const std::string& title = "unknown");
+        uint64_t CreateTimer(const DateTime& startTime, const DateTime& endTime, std::shared_ptr<ICallable> callable = nullptr, const std::string& title = "unknown");
         /**
          * @brief Активирует таймер (снимает с паузы).
          * Переводит таймер в рабочее состояние (_paused = false).
@@ -134,11 +133,10 @@ namespace other::time::timer
          * @param [in] id:        Уникальный идентификатор существующего таймера.
          * @param [in] startTime: Новое время активации.
          * @param [in] endTime:   Новое время ближайшего срабатывания.
-         * @param [in] interval:  Новый период повторения (TimeSpan::Zero для одиночного срабатывания).
          * 
          * Если таймер был завершен (_finish = true), этот метод вернет его к жизни.
          */
-        void RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval = TimeSpan::Zero);
+        void RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime);
         /**
          * @brief Возвращает время, прошедшее с момента активации таймера.
          * Расчет производится как разница между текущим моментом (Now) и начальной точкой отсчета (startTime).

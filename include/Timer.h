@@ -44,14 +44,13 @@ namespace other::time::timer
              * - _paused = true  (таймер ждет команды StartTimer или ResumeTimer)
              * - _called = false (колбэк еще не выполнялся)
              */
-            TimerInfo() : _startTime(DateTime::Zero), _endTime(DateTime::Zero), _interval(TimeSpan::Zero), _finish(false), _paused(true), _called(false), _callable(nullptr), _title("unknown")
+            TimerInfo() : _startTime(DateTime::Zero), _endTime(DateTime::Zero), _finish(false), _paused(true), _called(false), _callable(nullptr), _title("unknown")
             {
             }
 
             // --- Временные параметры ---
             DateTime    _startTime;   // Точка во времени, начиная с которой таймер считается активным
             DateTime    _endTime;     // Точка во времени, когда должно произойти ближайшее срабатывание
-            TimeSpan    _interval;    // Период повторения. Если 0 — таймер сработает один раз
 
             // --- Флаги состояния ---
             bool        _finish;      // Флаг завершения: если true, таймер будет удален при чистке
@@ -87,7 +86,6 @@ namespace other::time::timer
          * 
          * @param [in] startTime: Время, начиная с которого таймер считается активным.
          * @param [in] endTime:   Время первого (или единственного) срабатывания.
-         * @param [in] interval:  Период повторения. Если равен TimeSpan::Zero, таймер сработает один раз и завершится.
          * @param [in] callable:  Умный указатель на объект интерфейса ICallable, чей метод будет выполнен.
          * @param [in] title:     Человекочитаемое название таймера (полезно для логов и поиска).
          * 
@@ -95,7 +93,7 @@ namespace other::time::timer
          * Таймер создается в состоянии паузы (_paused = true).
          * Чтобы он начал отсчет, необходимо вызвать StartTimer(id) или ResumeTimer(id).
          */
-        uint64_t CreateTimer(const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval = TimeSpan::Zero, std::shared_ptr<ICallable> callable = nullptr, const std::string& title = "unknown");
+        uint64_t CreateTimer(const DateTime& startTime, const DateTime& endTime, std::shared_ptr<ICallable> callable = nullptr, const std::string& title = "unknown");
         /**
          * @brief Активирует таймер по его ID.
          * Переводит таймер из состояния ожидания в рабочее состояние, снимая флаг паузы.
@@ -115,11 +113,10 @@ namespace other::time::timer
          * @param [in] id:        Идентификатор таймера, который нужно обновить.
          * @param [in] startTime: Новая точка отсчета активации.
          * @param [in] endTime:   Новое время ближайшего срабатывания.
-         * @param [in] interval:  Новый период повторения (по умолчанию Zero).
          * 
          * Если таймер был помечен как завершенный (_finish = true), этот метод вернет его в рабочее состояние.
          */
-        void RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval = TimeSpan::Zero);
+        void RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime);
         /**
          * @brief Логическая остановка таймера.
          * Переводит таймер в терминальное состояние:

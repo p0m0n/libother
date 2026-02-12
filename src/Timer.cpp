@@ -15,7 +15,7 @@ namespace other::time::timer
     }
     
 	// Создает новый таймер и регистрирует его в системе.
-    uint64_t Timer::CreateTimer(const DateTime & startTime, const DateTime & endTime, const TimeSpan & interval, std::shared_ptr<ICallable> callable, const std::string & title)
+    uint64_t Timer::CreateTimer(const DateTime & startTime, const DateTime & endTime, std::shared_ptr<ICallable> callable, const std::string & title)
     {
         // Увеличиваем ID на 1
         _timerId += 1;
@@ -26,7 +26,6 @@ namespace other::time::timer
         // Заполняем поля.
         timer._startTime = startTime; // Дата, начиная с которой таймер "активен"
         timer._endTime   = endTime;   // Дата первого срабатывания
-        timer._interval  = interval;
         timer._callable  = callable;
         timer._title     = title;
 
@@ -51,7 +50,7 @@ namespace other::time::timer
     }
 	
 	// Перезапускает существующий таймер с новыми параметрами времени.
-	void Timer::RestartTimer(uint64_t id, const DateTime & startTime, const DateTime & endTime, const TimeSpan & interval)
+	void Timer::RestartTimer(uint64_t id, const DateTime & startTime, const DateTime & endTime)
     {
         // Экономит одно лишнее обращение к дереву map.
         auto it = _timerList.find(id);
@@ -66,7 +65,6 @@ namespace other::time::timer
         // Обновляем временные параметры
         timer._startTime = startTime;
         timer._endTime   = endTime;
-        timer._interval  = interval;
 
         // Сбрасываем состояние
         timer._called = false;
@@ -166,29 +164,6 @@ namespace other::time::timer
                 {
                     std::cerr << "Error in timer: " << timer._title << std::endl;
                 }
-            }
-
-            // Обработка интервалов (повторений)
-            if (timer._interval > TimeSpan::Zero)
-            {
-                // Сдвигаем интервал
-                timer._startTime = timer._endTime; // Предыдущий конец становится новым стартом
-                timer._endTime = timer._endTime.Add(timer._interval);
-
-                // Прокрутка, если время "улетело" вперед
-                while (timer._endTime <= now)
-                {
-                    timer._startTime = timer._endTime;
-                    timer._endTime = timer._endTime.Add(timer._interval);
-                }
-
-                // Сбрасываем флаг для следующего срабатывания
-                timer._called = false;
-            }
-            else
-            {
-                // Если интервала нет — завершаем таймер
-                timer._finish = true;
             }
         }
     }

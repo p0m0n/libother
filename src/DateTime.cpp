@@ -842,7 +842,7 @@ namespace other::time
         }
 #else
         char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
-        if (res == nullptr)
+        if (*res == '\0')
         {
             result = DateTime::Zero;
             return false;

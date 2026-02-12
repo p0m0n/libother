@@ -37,8 +37,7 @@ int main()
 
     // 4. Подготовка параметров для циклического таймера
     DateTime start = DateTime::Now();
-    DateTime firstTrigger = start + TimeSpan::FromSeconds(3); // Первая сработка через 3 сек
-    TimeSpan interval = TimeSpan::FromSeconds(2);           // Повтор каждые 2 сек или (TimeSpan::Zero без повторов)
+    DateTime firstTrigger = start + TimeSpan::FromSeconds(5); // Первая сработка через 5 сек
 
     // Создаем объект с нашей логикой
     auto myTask = std::make_shared<NotificationTask>("Пора сделать разминку!");
@@ -48,14 +47,13 @@ int main()
     uint64_t taskID = timerController.CreateTimer(
         start,
         firstTrigger,
-        interval,
         myTask,
         "HealthCheck"
     );
 
     // 6. Активация таймера (после создания он всегда на паузе для безопасности)
     timerController.StartTimer(taskID);
-    std::cout << "Таймер [HealthCheck] создан с ID: " << taskID << ". Ждем 3 секунды..." << std::endl;
+    std::cout << "Таймер [HealthCheck] создан с ID: " << taskID << ". Ждем 5 секунд..." << std::endl;
 
     // Имитация работы основного потока
     for (int i = 0; i < 10; ++i) {

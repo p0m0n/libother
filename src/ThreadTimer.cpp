@@ -2,8 +2,8 @@
 
 namespace other::time::timer
 {
-    ThreadTimer::ThreadTimer(std::shared_ptr<Timer> parent) 
-        : _parent(parent),    // Сохраняем указатель на Timer
+    ThreadTimer::ThreadTimer(std::shared_ptr<Timer> timer)
+        : _timer(timer),      // Сохраняем указатель на Timer
         _running(false)       // Изначально поток выключен (атомарная инициализация)
     {
         /**
@@ -60,11 +60,11 @@ namespace other::time::timer
                      * Если список пуст, поток не "молотит" процессор впустую, а засыпает до тех пор,
                      * пока через CreateTimer не придет уведомление (notify_all) или пока не вызовут Stop().
                      */
-                    if (_parent->TimerList().empty())
+                    if (_timer->TimerList().empty())
                     {
                         _cond_v.wait(lock, [this]
                             {
-                                return !_running || !_parent->TimerList().empty();
+                                return !_running || !_timer->TimerList().empty();
                             });
                     }
 
@@ -79,7 +79,7 @@ namespace other::time::timer
                      * а затем работать с ним, не блокируя другие методы (например, CreateTimer).
                      */
                     std::vector<uint64_t> ids;
-                    for (const auto& [id, _] : _parent->TimerList())
+                    for (const auto& [id, _] : _timer->TimerList())
                     {
                         ids.push_back(id);
                     }
@@ -94,7 +94,7 @@ namespace other::time::timer
 
                     for (uint64_t id : ids)
                     {
-                        _parent->CheckTimeout(id);
+                        _timer->CheckTimeout(id);
                     }
 
                     /**
@@ -149,7 +149,7 @@ namespace other::time::timer
         }
     }
 
-    uint64_t ThreadTimer::CreateTimer(const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval, std::shared_ptr<ICallable> callable, const std::string& title)
+    uint64_t ThreadTimer::CreateTimer(const DateTime& startTime, const DateTime& endTime, std::shared_ptr<ICallable> callable, const std::string& title)
     {
         uint64_t newId;
         {
@@ -157,7 +157,7 @@ namespace other::time::timer
             std::lock_guard<std::mutex> lock(_mutex);
 
 			// Создаём новый таймер.
-            newId = _parent->CreateTimer(startTime, endTime, interval, callable, title);
+            newId = _timer->CreateTimer(startTime, endTime, callable, title);
         }
 
         // Будим поток! Если он спал в wait(), он тут же проснется и начнет проверку нового таймера.
@@ -171,7 +171,7 @@ namespace other::time::timer
         std::lock_guard<std::mutex> lock(_mutex);
 		
 		// Обращаемся к ядру для сброса флага паузы
-        _parent->StartTimer(id);
+        _timer->StartTimer(id);
 		
 		/**
          * Генерируем сигнал для фонового потока.
@@ -192,7 +192,7 @@ namespace other::time::timer
          * timer._finish = true;
          * Это гарантирует, что в следующем цикле CheckTimeout проигнорирует этот ID.
          */
-        _parent->StopTimer(id);
+        _timer->StopTimer(id);
 		
 		// Уведомляем поток на случай, если он ждал изменений в списке.
         _cond_v.notify_all();
@@ -207,7 +207,7 @@ namespace other::time::timer
          * Вызываем метод ядра, который установит:
          * timer._paused = true;
          */
-        _parent->PauseTimer(id);
+        _timer->PauseTimer(id);
 		
 		/**
          * ПРИМЕЧАНИЕ: Здесь notify_all() обычно не обязателен, 
@@ -222,7 +222,7 @@ namespace other::time::timer
         std::lock_guard<std::mutex> lock(_mutex);
 		
 		// Сбрасываем флаг паузы в ядре
-        _parent->ResumeTimer(id);
+        _timer->ResumeTimer(id);
 
 		/**
          * ВАЖНО: Вызываем notify_all(). 
@@ -233,7 +233,7 @@ namespace other::time::timer
         _cond_v.notify_all();
     }
 
-    void ThreadTimer::RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime, const TimeSpan& interval)
+    void ThreadTimer::RestartTimer(uint64_t id, const DateTime& startTime, const DateTime& endTime)
     {
 		// Захватываем мьютекс для безопасного изменения состояния.
         std::lock_guard<std::mutex> lock(_mutex);
@@ -245,7 +245,7 @@ namespace other::time::timer
          * 3. Устанавливает _paused = false и _finish = false.
          * 4. Сбрасывает _called = false, чтобы позволить новое срабатывание.
          */
-        _parent->RestartTimer(id, startTime, endTime, interval);
+        _timer->RestartTimer(id, startTime, endTime);
 		
 		/**
          * ВАЖНО: notify_all() здесь обязателен.
@@ -270,7 +270,7 @@ namespace other::time::timer
          * Вся математика расчета находится внутри ядра Timer.
          * Метод вернет разницу (DateTime::Now - _startTime).
          */
-        return _parent->ElapsedTime(id);
+        return _timer->ElapsedTime(id);
     }
 
     TimeSpan ThreadTimer::RemainingTime(uint64_t id) const
@@ -283,7 +283,7 @@ namespace other::time::timer
          * Вызывает метод ядра Timer, который сравнивает текущее время с timer._endTime.
          * Если Now >= endTime, метод вернет TimeSpan(0), сигнализируя, что ждать больше нечего.
          */
-        return _parent->RemainingTime(id);
+        return _timer->RemainingTime(id);
     }
 
     uint64_t ThreadTimer::FindTimerIdFromTitle(const std::string& title) const
@@ -296,7 +296,7 @@ namespace other::time::timer
          * Вызывает метод ядра Timer, который проходит циклом по всем элементам _timerList.
          * Линейная сложность поиска O(n).
          */
-        return _parent->FindTimerIdFromTitle(title);
+        return _timer->FindTimerIdFromTitle(title);
     }
 
     uint64_t ThreadTimer::RemoveStopTimers()
@@ -314,7 +314,7 @@ namespace other::time::timer
          * 2. Вызывает erase() для каждого такого элемента.
          * 3. Возвращает число удаленных записей.
          */
-        return _parent->RemoveStopTimers();
+        return _timer->RemoveStopTimers();
     }
 
     uint64_t ThreadTimer::TotalTimersCreated() const
@@ -327,6 +327,6 @@ namespace other::time::timer
          * Возвращает размер внутреннего контейнера std::map.
          * Сложность операции O(1).
          */
-        return _parent->TotalTimersCreated();
+        return _timer->TotalTimersCreated();
     }
 }

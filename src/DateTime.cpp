@@ -326,36 +326,27 @@ namespace other::time
         return TimeSpan(_ticks - value._ticks);
     }
 
-    DateTime DateTime::ToLocalTime() const
+    DateTime DateTime::ToLocalTime() const 
     {
-        if (_kind == DateTimeKind::Local)
+        if (_kind == DateTimeKind::Local) 
             return *this;
 
-        // Вычисляем смещение часового пояса
-        std::time_t now = std::time(nullptr);
-        std::tm ltm = { 0 };
-#ifdef _WIN32
-        localtime_s(&ltm, &now);
+        // Конвертируем тики нашего объекта в unix timestamp.
+        std::time_t utc_t = static_cast<std::time_t>(ToUnixTimeSeconds());
+        std::tm tm = { 0 };
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        localtime_s(&tm, &utc_t);
 #else
-        localtime_r(&now, &ltm);
+        localtime_r(&utc_t, &tm);
 #endif
+        // Создаем объект из компонентов, которые нам дала система (уже локальных)
+        // Важно: передаем DateTimeKind::Local
+        DateTime local(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0, DateTimeKind::Local);
 
-        // В C++ разница хранится в глобальных переменных после вызова localtime
-        long offsetSeconds = 0;
-#ifdef _WIN32
-        _get_timezone(&offsetSeconds);
-#else
-        offsetSeconds = -timezone; // В Unix 'timezone' имеет обратный знак
-#endif
-
-        // Если сейчас действует летнее время, корректируем смещение на 1 час.
-        if (ltm.tm_isdst > 0)
-        {
-            offsetSeconds -= static_cast<long>(SECS_PER_HOUR);
-        }
-
-        int64_t offset = static_cast<int64_t>(offsetSeconds) * TICKS_PER_SECOND;
-        return DateTime(_ticks - offset, DateTimeKind::Local);
+        // ВОЗВРАЩАЕМ ТОЧНОСТЬ: добавляем остаток тиков, которые меньше одной секунды.
+        int64_t result = _ticks % TICKS_PER_SECOND;
+        return DateTime(local.Ticks() + result, DateTimeKind::Local);
     }
 
     DateTime DateTime::ToUniversalTime() const
@@ -364,23 +355,30 @@ namespace other::time
         if (_kind == DateTimeKind::Utc)
             return *this;
 
-        long offsetSeconds = 0;
-#ifdef _WIN32
-        // Windows путь получения смещения часового пояса
-        _get_timezone(&offsetSeconds);
-#else
-        // Unix/POSIX путь (переменная timezone определена в <ctime>)
-        offsetSeconds = timezone;
-#endif
+        // Заполняем структуру tm компонентами.
+        std::tm tm = { 0 };
+        tm.tm_year = Year() - 1900;
+        tm.tm_mon  = Month() - 1;
+        tm.tm_mday = Day();
+        tm.tm_hour = Hour();
+        tm.tm_min  = Minute();
+        tm.tm_sec  = Second();
 
-        // Если сейчас действует летнее время, корректируем смещение на 1 час.
-        if (IsDaylightSavingTime())
-        {
-            offsetSeconds -= static_cast<long>(SECS_PER_HOUR);
-        }
+        // -1 заставляет систему саму определить, действовал ли летний переход  именно в ЭТУ дату (например, 5 лет назад).
+        tm.tm_isdst = -1;
 
-        int64_t offset = static_cast<int64_t>(offsetSeconds) * TICKS_PER_SECOND;
-        return DateTime(_ticks + offset, DateTimeKind::Utc);
+        // mktime берет локальное время и возвращает UTC timestamp (секунды)
+        std::time_t utc_t = std::mktime(&tm);
+        if (utc_t == static_cast<std::time_t>(-1))
+            return *this;
+        
+        // Переводим секунды обратно в тики.
+        int64_t ticks = FromUnixTimeSeconds(utc_t).Ticks();
+
+        // ВОЗВРАЩАЕМ ТОЧНОСТЬ: добавляем остаток тиков, которые меньше одной секунды.
+        ticks += (_ticks % TICKS_PER_SECOND);
+
+        return DateTime(ticks, DateTimeKind::Utc);
     }
 
     int DateTime::Compare(const DateTime& value) const
@@ -413,7 +411,7 @@ namespace other::time
 
         std::tm ltm = { 0 };
 
-#ifdef _WIN32
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         if (localtime_s(&ltm, &time) != 0)
             return false;
 #else
@@ -834,7 +832,7 @@ namespace other::time
 
         std::tm tm = { 0 };
 
-#ifdef _WIN32
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         std::istringstream ss(input);
         ss >> std::get_time(&tm, cFormat.c_str());
         if (ss.fail())

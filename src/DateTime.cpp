@@ -811,55 +811,47 @@ namespace other::time
         if (input.empty() || format.empty())
             return false;
 
-        // Подготовка формата (преобразование токенов)
-        std::string cFormat = format;
-        auto replace = [](std::string& str, const std::string& from, const std::string& to)
-        {
-            size_t start_pos = 0;
-            while ((start_pos = str.find(from, start_pos)) != std::string::npos)
-            {
-                str.replace(start_pos, from.length(), to);
-                start_pos += to.length();
-            }
-        };
-
-        replace(cFormat, "yyyy", "%Y");
-        replace(cFormat, "MM",   "%m");
-        replace(cFormat, "dd",   "%d");
-        replace(cFormat, "HH",   "%H");
-        replace(cFormat, "mm",   "%M");
-        replace(cFormat, "ss",   "%S");
-
-        std::tm tm = { 0 };
-
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-        std::istringstream ss(input);
-        ss >> std::get_time(&tm, cFormat.c_str());
-        if (ss.fail())
-        {
-            result = DateTime::Zero;
-            return false;
-        }
-#else
-        char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
-        if (*res == '\0')
-        {
-            result = DateTime::Zero;
-            return false;
-        }
-#endif
-
-        // Получаем компоненты.
-		int year   = tm.tm_year + 1900;
-        int month  = tm.tm_mon + 1;
-        int day    = tm.tm_mday;
-        int hour   = tm.tm_hour;
-        int minute = tm.tm_min;
-        int second = tm.tm_sec;
-
         try
         {
-            result = DateTime(year, month, day, hour, minute, second, 0, DateTimeKind::Unspecified);
+            // Подготовка формата (преобразование токенов)
+            std::string cFormat = format;
+            auto replace = [](std::string& str, const std::string& from, const std::string& to)
+            {
+                size_t start_pos = 0;
+                while ((start_pos = str.find(from, start_pos)) != std::string::npos)
+                {
+                    str.replace(start_pos, from.length(), to);
+                    start_pos += to.length();
+                }
+            };
+
+            replace(cFormat, "yyyy", "%Y");
+            replace(cFormat, "MM", "%m");
+            replace(cFormat, "dd", "%d");
+            replace(cFormat, "HH", "%H");
+            replace(cFormat, "mm", "%M");
+            replace(cFormat, "ss", "%S");
+
+            std::tm tm = { 0 };
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+            std::istringstream ss(input);
+            ss >> std::get_time(&tm, cFormat.c_str());
+            if (ss.fail())
+            {
+                result = DateTime::Zero;
+                return false;
+            }
+#else
+            char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
+            if (*res == '\0')
+            {
+                result = DateTime::Zero;
+                return false;
+            }
+#endif
+
+            result = DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0, DateTimeKind::Unspecified);
             return true;
         }
         catch (...)

@@ -163,7 +163,7 @@ static void TestsDateTime()
     // 10. Парсинг
     DateTime parsed1;
     {
-        for (int i = 0; i < ARRAYSIZE(formats_date_time); i++)
+        for (int i = 0; i < ARRAY_SIZE(formats_date_time); i++)
         {
             bool result = DateTime::TryParse(formats_date_time[i].format, parsed1);
             if (result)

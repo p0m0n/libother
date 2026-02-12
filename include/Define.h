@@ -30,9 +30,13 @@
 #   include <windows.h>
 #   undef min
 #   undef max
+#   undef ARRAYSIZE
+#   undef _ARRAYSIZE
 #   define m_sscanf                    sscanf_s
 #else
 #   define m_sscanf                    sscanf
 #endif
+
+#define ARRAY_SIZE(A)    (sizeof(A)/sizeof((A)[0]))
 
 #endif

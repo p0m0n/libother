@@ -333,16 +333,16 @@ namespace other::time
 
         // Конвертируем тики нашего объекта в unix timestamp.
         std::time_t utc_t = static_cast<std::time_t>(ToUnixTimeSeconds());
-        std::tm tm = { 0 };
+        std::tm ltm = { 0 };
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-        localtime_s(&tm, &utc_t);
-#else
-        localtime_r(&utc_t, &tm);
+        localtime_s(&ltm, &utc_t);
+#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX
+        localtime_r(&utc_t, &ltm);
 #endif
         // Создаем объект из компонентов, которые нам дала система (уже локальных)
         // Важно: передаем DateTimeKind::Local
-        DateTime local(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0, DateTimeKind::Local);
+        DateTime local(ltm.tm_year + 1900, ltm.tm_mon + 1, ltm.tm_mday, ltm.tm_hour, ltm.tm_min, ltm.tm_sec, 0, DateTimeKind::Local);
 
         // ВОЗВРАЩАЕМ ТОЧНОСТЬ: добавляем остаток тиков, которые меньше одной секунды.
         int64_t result = _ticks % TICKS_PER_SECOND;
@@ -356,19 +356,19 @@ namespace other::time
             return *this;
 
         // Заполняем структуру tm компонентами.
-        std::tm tm = { 0 };
-        tm.tm_year = Year() - 1900;
-        tm.tm_mon  = Month() - 1;
-        tm.tm_mday = Day();
-        tm.tm_hour = Hour();
-        tm.tm_min  = Minute();
-        tm.tm_sec  = Second();
+        std::tm ltm = { 0 };
+        ltm.tm_year = Year() - 1900;
+        ltm.tm_mon  = Month() - 1;
+        ltm.tm_mday = Day();
+        ltm.tm_hour = Hour();
+        ltm.tm_min  = Minute();
+        ltm.tm_sec  = Second();
 
         // -1 заставляет систему саму определить, действовал ли летний переход  именно в ЭТУ дату (например, 5 лет назад).
-        tm.tm_isdst = -1;
+        ltm.tm_isdst = -1;
 
         // mktime берет локальное время и возвращает UTC timestamp (секунды)
-        std::time_t utc_t = std::mktime(&tm);
+        std::time_t utc_t = std::mktime(&ltm);
         if (utc_t == static_cast<std::time_t>(-1))
             return *this;
         
@@ -414,7 +414,7 @@ namespace other::time
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         if (localtime_s(&ltm, &time) != 0)
             return false;
-#else
+#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX
         // POSIX версия для Linux/macOS
         if (localtime_r(&time, &ltm) == nullptr)
             return false;
@@ -588,7 +588,7 @@ namespace other::time
         if (TryParse(input, result))
             return result;
 
-        throw std::invalid_argument("String was not recognized as a valid DateTime.");
+        return DateTime::Zero;
     }
 
     // Вспомогательная функция (статическая)
@@ -645,6 +645,7 @@ namespace other::time
                     return true;
                 }
 
+                result = DateTime::Zero;
                 return false;
             }
 
@@ -773,8 +774,10 @@ namespace other::time
         }
         catch (...) 
 		{
+            result = DateTime::Zero;
             return false;
         }
+
         return false;
     }
 
@@ -784,7 +787,7 @@ namespace other::time
         if (TryParseExact(input, format, result))
             return result;
 
-        throw std::invalid_argument("DateTime.ParseExact: String does not match any of the provided formats.");
+        return DateTime::Zero;
     }
 	
 	DateTime DateTime::ParseExact(const std::string& input, const std::vector<std::string>& formats)
@@ -802,8 +805,7 @@ namespace other::time
             }
         }
 
-        // Если цикл завершился и ни один формат не подошел
-        throw std::invalid_argument("DateTime.ParseExact: String does not match any of the provided formats.");
+        return DateTime::Zero;
     }
 
     bool DateTime::TryParseExact(const std::string& input, const std::string& format, DateTime& result)
@@ -842,9 +844,9 @@ namespace other::time
                 result = DateTime::Zero;
                 return false;
             }
-#else
+#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX
             char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
-            if (*res == '\0')
+            if (res == nullptr)
             {
                 result = DateTime::Zero;
                 return false;

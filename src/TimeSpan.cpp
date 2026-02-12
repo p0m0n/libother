@@ -256,7 +256,7 @@ namespace other::time
         if (TimeSpan::TryParse(input, result))
             return result;
 
-        throw std::invalid_argument("TimeSpan string format error.");
+        return TimeSpan::Zero;
     }
 
     bool TimeSpan::TryParse(const std::string& input, TimeSpan& result)
@@ -352,6 +352,7 @@ namespace other::time
         }
         catch (...) // Ловим любые исключения.
         {
+            result = TimeSpan::Zero;
             return false;
         }
     }
@@ -362,7 +363,7 @@ namespace other::time
         if (TryParseExact(input, format, result))
             return result;
 
-        throw std::invalid_argument("TimeSpan string does not match the specified format.");
+        return TimeSpan::Zero;
     }
 
     TimeSpan TimeSpan::ParseExact(const std::string& input, const std::vector<std::string>& formats)
@@ -380,8 +381,7 @@ namespace other::time
             }
         }
 
-        // Если цикл завершился и ни один формат не подошел
-        throw std::invalid_argument("TimeSpan string does not match any of the provided formats.");
+        return TimeSpan::Zero;
     }
 
     bool TimeSpan::TryParseExact(const std::string& input, const std::string& format, TimeSpan& result)
@@ -519,6 +519,7 @@ namespace other::time
         }
         catch (...) // Ловим любые исключения.
         {
+            result = TimeSpan::Zero;
             return false;
         }
     }
@@ -544,8 +545,7 @@ namespace other::time
             }
         }
 
-        // Если цикл завершился и ни один формат не подошел
-        throw std::invalid_argument("TimeSpan string does not match any of the provided formats.");
+        return false;
     }
 
     //////////////////////////////////////////////////////////////////////

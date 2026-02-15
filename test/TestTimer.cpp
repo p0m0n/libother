@@ -27,7 +27,7 @@ int main()
     auto myTask    = std::make_shared<BombTask>();
 
     // 4. Создаем одиночный (без интервала) таймер и получаем его ID
-    uint64_t id = timerEngine.CreateTimer(start, end, TimeSpan::Zero, myTask, "ExplosionTimer");
+    uint64_t id = timerEngine.CreateTimer(start, end, myTask, "ExplosionTimer");
 
     // 5. Обязательно запускаем его (по умолчанию он на паузе)
     timerEngine.StartTimer(id);

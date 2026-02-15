@@ -14,7 +14,7 @@ namespace other::time::timer
      */
     class IntervalTimer
     {
-    public:
+    private:
         TimeSpan _interval;    // Длительность одного периода срабатывания (Get/Set).
         TimeSpan _current;     // Текущее накопленное время (аккумулятор) (Get/Set).
 
@@ -65,6 +65,25 @@ namespace other::time::timer
                 return true;
             }
             return false;
+        }
+        
+
+        const TimeSpan& Interval() const
+        {
+            return _interval;
+        }
+        void SetInterval(const TimeSpan& interval)
+        {
+            _interval = interval;
+        }
+
+        const TimeSpan& Current() const
+        {
+            return _current;
+        }
+        void SetCurrent(const TimeSpan& current)
+        {
+            _current = current;
         }
     };
 }

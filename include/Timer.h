@@ -153,9 +153,7 @@ namespace other::time::timer
          * Сравнивает DateTime::Now() с _endTime таймера.
          * 
          * Если время пришло и таймер не на паузе:
-         * 1. Вызывает _callable->callAfterTimeout().
-         * 2. Если задан _interval, вычисляет новый _endTime.
-         * 3. Если интервала нет, ставит флаг _finish = true.
+         * Вызывает _callable->callAfterTimeout() и ставит флаг _finish = true.
          * 
          * @param [in] id: Уникальный идентификатор таймера.
          */

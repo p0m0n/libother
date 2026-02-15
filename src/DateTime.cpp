@@ -844,9 +844,9 @@ namespace other::time
                 result = DateTime::Zero;
                 return false;
             }
-#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX
+#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX || LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_APPLE
             char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
-            if (res == nullptr)
+            if ((res == nullptr) || (*res != '\0'))
             {
                 result = DateTime::Zero;
                 return false;

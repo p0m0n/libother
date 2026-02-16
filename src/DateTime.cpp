@@ -14,7 +14,7 @@ namespace other::time
     // Инициализация максимального значения.
     const DateTime DateTime::MaxValue(MaxTicksDateTime, DateTimeKind::Unspecified);
 
-    // Основной конструктор по тикам.
+    // Основной конструктор по тактам.
     DateTime::DateTime(int64_t ticks, const DateTimeKind& kind) : _ticks(ticks), _kind(kind)
     {
         // Проверка границ допустимого диапазона.
@@ -26,15 +26,15 @@ namespace other::time
     }
 
     // Делегирующий конструктор (Г.М.Д).
-    DateTime::DateTime(int year, int month, int day) : DateTime(year, month, day, 0, 0, 0, 0, DateTimeKind::Unspecified) // Перенаправляем вызов в полный конструктор.
+    DateTime::DateTime(int year, int month, int day) 
+	: DateTime(year, month, day, 0, 0, 0, 0, DateTimeKind::Unspecified) // Перенаправляем вызов в полный конструктор.
     {
     }
 
     // Полный конструктор со всеми компонентами.
     DateTime::DateTime(int year, int month, int day, int hour, int minute, int second, int millisecond, const DateTimeKind& kind) : _kind(kind)
     {
-
-        // Проверка диапазона года и месяца
+        // Базовая проверка корректности месяца и года.
         if ((year < 1 || year > 9999) || (month < 1 || month > 12))
             throw std::out_of_range("Year or Month out of range.");
 
@@ -49,12 +49,12 @@ namespace other::time
         if ((hour < 0 || hour >= 24) || (minute < 0 || minute >= 60) || (second < 0 || second >= 60) || (millisecond < 0 || millisecond >= 1000))
             throw std::out_of_range("Time components out of range.");
 
-        // Формула: дни за полные года + поправки на високосные года + дни в текущем году
+        // Формула: дни за полные года + поправки на високосные года + дни в текущем году.
         year -= 1;
         int nday = year * 365 + year / 4 - year / 100 + year / 400 + days[month - 1] + day - 1;
 
-        // Используем макрос/функцию для сложения компонентов.
         int64_t ticks = 0;
+		// Макрос для преобразования дней, часов и мс в общую сумму тиков.
         ADDED_TICKS(ticks, nday, hour, minute, second, millisecond);
 
         // Проверка границ допустимого диапазона.
@@ -84,16 +84,20 @@ namespace other::time
 
     DateTime DateTime::Now()
     {
+		// Берем UTC и переводим в часовой пояс пользователя.
         return UtcNow().ToLocalTime();
     }
 
     DateTime DateTime::UtcNow()
     {
+		// Используем стандартную библиотеку C++ chrono.
         auto now = std::chrono::system_clock::now();
         auto duration = now.time_since_epoch();
 
-        // Конвертируем наносекунды в 100-наносекундные интервалы (Ticks)
+        // Переводим наносекунды из chrono в тики (1 тик = 100 нс).
         int64_t ticks = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() / 100;
+		
+		// Прибавляем разницу между Unix Epoch (1970) и началом нашей эры (0001).
         return DateTime(ticks + TICKS_UNIX_EPOCH, DateTimeKind::Utc);
     }
 
@@ -107,19 +111,19 @@ namespace other::time
 
     int DateTime::Year() const
     {
-        int64_t n = _ticks / TICKS_PER_DAY;
-        int y400 = (int)(n / DAYS_PER_400YEARS);
+        int64_t n = _ticks / TICKS_PER_DAY;       // Получаем общее кол-во дней.
+        int y400 = (int)(n / DAYS_PER_400YEARS);  // Считаем 400-летние циклы.
         n -= y400 * DAYS_PER_400YEARS;
 
-        int y100 = (int)(n / DAYS_PER_100YEARS);
+        int y100 = (int)(n / DAYS_PER_100YEARS);  // Считаем 100-летние циклы.
         if (y100 == 4)
-            y100 = 3;
+            y100 = 3;                             // Коррекция для последнего года цикла.
 
         n -= y100 * DAYS_PER_100YEARS;
-        int y4 = (int)(n / DAYS_PER_4YEARS);
+        int y4 = (int)(n / DAYS_PER_4YEARS);      // Считаем 4-летние циклы.
         n -= y4 * DAYS_PER_4YEARS;
 
-        int y1 = (int)(n / DAYS_PER_YEAR);
+        int y1 = (int)(n / DAYS_PER_YEAR);        // Оставшиеся года.
         if (y1 == 4)
             y1 = 3;
 
@@ -158,7 +162,7 @@ namespace other::time
 
     DayOfWeek DateTime::GetDayOfWeek() const
     {
-        // Получаем общее количество полных дней с 01.01.0001
+        // Получаем общее количество полных дней с 01.01.0001.
         int64_t totalDays = _ticks / TICKS_PER_DAY;
 
         int dayIndex = (int)((totalDays + 1) % 7);
@@ -846,7 +850,7 @@ namespace other::time
             }
 #elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX || LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_APPLE
             char* res = strptime(input.c_str(), cFormat.c_str(), &tm);
-            if ((res == nullptr) || (*res != '\0'))
+            if (res == nullptr)
             {
                 result = DateTime::Zero;
                 return false;
@@ -1176,7 +1180,8 @@ namespace other::time
         // Вспомогательные лямбда-функции для часто повторяющихся элементов (внутри функции)
         auto format_date_short = [&]() {
             std::ostringstream s;
-            s << std::setfill('0') << std::setw(2) << day << "."
+            s << std::setfill('0') 
+			    << std::setw(2) << day   << "."
                 << std::setw(2) << month << "."
                 << std::setw(4) << year;
             return s.str();
@@ -1190,13 +1195,18 @@ namespace other::time
 
         auto format_time_short = [&]() {
             std::ostringstream s;
-            s << std::setfill('0') << std::setw(2) << hour << ":" << std::setw(2) << minute;
+            s << std::setfill('0') 
+			<< std::setw(2) << hour << ":" 
+			<< std::setw(2) << minute;
             return s.str();
         };
 
         auto format_time_long = [&]() {
             std::ostringstream s;
-            s << std::setfill('0') << std::setw(2) << hour << ":" << std::setw(2) << minute << ":" << std::setw(2) << second;
+            s << std::setfill('0') 
+			<< std::setw(2) << hour    << ":" 
+			<< std::setw(2) << minute  << ":" 
+			<< std::setw(2) << second;
             return s.str();
         };
 
@@ -1237,19 +1247,21 @@ namespace other::time
             return oss.str();
 
         case 's': // Sortable (ISO 8601): "2025-12-28T22:04:59"
-            oss << std::setfill('0') << std::setw(4) << year << "-"
-                << std::setw(2) << month << "-"
-                << std::setw(2) << day << "T"
-                << std::setw(2) << hour << ":"
+            oss << std::setfill('0') 
+			    << std::setw(4) << year   << "-"
+                << std::setw(2) << month  << "-"
+                << std::setw(2) << day    << "T"
+                << std::setw(2) << hour   << ":"
                 << std::setw(2) << minute << ":"
                 << std::setw(2) << second;
             return oss.str();
 
         case 'u': // Universal sortable: "2025-12-28 22:04:59Z"
-            oss << std::setfill('0') << std::setw(4) << year << "-"
-                << std::setw(2) << month << "-"
-                << std::setw(2) << day << " "
-                << std::setw(2) << hour << ":"
+            oss << std::setfill('0') 
+			    << std::setw(4) << year   << "-"
+                << std::setw(2) << month  << "-"
+                << std::setw(2) << day    << " "
+                << std::setw(2) << hour   << ":"
                 << std::setw(2) << minute << ":"
                 << std::setw(2) << second << "Z";
             return oss.str();

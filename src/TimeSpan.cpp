@@ -10,7 +10,7 @@ namespace other::time
     // Инициализация минимального значения.
     const TimeSpan TimeSpan::MinValue(MinTicksTimeSpan);
 
-    // Основной конструктор по тактам
+    // Основной конструктор по тактам.
     TimeSpan::TimeSpan(int64_t ticks) : _ticks(ticks)
     {
         // Проверка границ допустимого диапазона.
@@ -21,13 +21,13 @@ namespace other::time
         }
     }
 
-    // Делегирующий конструктор (Ч:М:С)
+    // Делегирующий конструктор (Ч:М:С).
     TimeSpan::TimeSpan(int hours, int minutes, int seconds) 
-        : TimeSpan(0, hours, minutes, seconds, 0)   // Перенаправляем вызов в полный конструктор
+        : TimeSpan(0, hours, minutes, seconds, 0)   // Перенаправляем вызов в полный конструктор.
     {
     }
 
-    // Полный конструктор со всеми компонентами
+    // Полный конструктор со всеми компонентами.
     TimeSpan::TimeSpan(int days, int hours, int minutes, int seconds, int milliseconds)
     {
         int64_t ticks = 0;
@@ -46,18 +46,17 @@ namespace other::time
         _ticks = ticks;
     }
 
-    // Конструктор копирования
+    // Конструктор копирования.
     TimeSpan::TimeSpan(const TimeSpan& value) : _ticks(value._ticks)
     {
     }
 
-    // Конструктор перемещения
+    // Конструктор перемещения.
     TimeSpan::TimeSpan(TimeSpan&& value) noexcept : _ticks(value._ticks)
     {
-        value._ticks = 0; // Сбрасываем старый объект
+        value._ticks = 0; // Сбрасываем старый объект.
     }
 
-    // --- Геттеры компонентов (Целые числа) ---
     int64_t TimeSpan::Ticks() const    { return _ticks; }
     int TimeSpan::Days() const         { return (int)(_ticks / TICKS_PER_DAY); }
     int TimeSpan::Hours() const        { return (int)((_ticks / TICKS_PER_HOUR) % 24); }
@@ -65,7 +64,6 @@ namespace other::time
     int TimeSpan::Seconds() const      { return (int)((_ticks / TICKS_PER_SECOND) % 60); }
     int TimeSpan::Milliseconds() const { return (int)((_ticks / TICKS_PER_MILLISECOND) % 1000); }
 
-    // --- Геттеры общих значений (Double) ---
     double TimeSpan::TotalDays() const         { return static_cast<double>(_ticks) / TICKS_PER_DAY; }
     double TimeSpan::TotalHours() const        { return static_cast<double>(_ticks) / TICKS_PER_HOUR;}
     double TimeSpan::TotalMinutes() const      { return static_cast<double>(_ticks) / TICKS_PER_MINUTE;}

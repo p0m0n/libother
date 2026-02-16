@@ -67,20 +67,31 @@ namespace other::time::timer
             return false;
         }
         
-
+		/**
+         * @brief Возвращает текущий настроенный интервал срабатывания.
+         */
         const TimeSpan& Interval() const
         {
             return _interval;
         }
+		/**
+         * @brief Устанавливает новую длительность периода.
+         */
         void SetInterval(const TimeSpan& interval)
         {
             _interval = interval;
         }
-
+		
+		/**
+         * @brief Возвращает текущее накопленное время.
+         */
         const TimeSpan& Current() const
         {
             return _current;
         }
+		/**
+         * @brief Принудительно задает накопленное значение таймера.
+         */
         void SetCurrent(const TimeSpan& current)
         {
             _current = current;

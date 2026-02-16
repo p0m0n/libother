@@ -2,6 +2,12 @@
 
 namespace other::time::timer
 {
+    ThreadTimer* ThreadTimer::Instance()
+    {
+        static ThreadTimer _instance;
+        return &_instance;
+    }
+
     ThreadTimer::ThreadTimer(std::shared_ptr<Timer> timer)
         : _timer(timer),      // Сохраняем указатель на Timer
         _running(false)       // Изначально поток выключен (атомарная инициализация)

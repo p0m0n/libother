@@ -5,6 +5,12 @@
 namespace other::time::timer
 {
    
+    Timer* Timer::Instance()
+    {
+        static Timer _instance;
+        return &_instance;
+    }
+
     Timer::Timer(uint64_t timerId) 
         : _timerId(timerId) // Инициализация счетчика
     {

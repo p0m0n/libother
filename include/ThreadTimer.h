@@ -23,6 +23,8 @@ namespace other::time::timer
         std::atomic<bool>       _running;    // Атомарный флаг состояния жизненного цикла потока
 
     public:
+        static ThreadTimer* Instance();
+
         /**
          * @brief Конструктор контроллера ThreadTimer.
          * Инициализирует контроллер, связывая его с объектом Timer.
@@ -34,7 +36,7 @@ namespace other::time::timer
          * Поток не запускается автоматически при создании объекта.
          * Для начала работы необходимо явно вызвать метод Start().
          */
-        ThreadTimer(std::shared_ptr<Timer> timer);
+        ThreadTimer(std::shared_ptr<Timer> timer = nullptr);
         /**
          * @brief Деструктор класса ThreadTimer.
          * Обеспечивает безопасное завершение фонового потока. Автоматически вызывает Stop(),

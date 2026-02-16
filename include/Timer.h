@@ -69,6 +69,8 @@ namespace other::time::timer
         timer_m  _timerList;    // Основное хранилище: ID таймера -> Данные таймера.
 
     public:
+        static Timer* Instance();
+
         /**
          * @brief Конструктор ядра управления таймерами.
          * Инициализирует внутренний счетчик идентификаторов.

@@ -16,8 +16,10 @@ namespace other::time
         // Проверка границ допустимого диапазона.
         if (ticks < MinTicksTimeSpan || ticks > MaxTicksTimeSpan)
         {
-            // Если вышли за границы — выбрасываем исключение.
-            throw std::out_of_range("TimeSpan ticks are out of range.");
+#if LIBOTHER_DEBUG
+            std::cout << "ERROR: TimeSpan, ticks are out of range." << std::endl;
+#endif
+            throw;
         }
     }
 
@@ -38,8 +40,10 @@ namespace other::time
         // Проверка границ допустимого диапазона.
         if (ticks < MinTicksTimeSpan || ticks > MaxTicksTimeSpan)
         {
-            // Если вышли за границы — выбрасываем исключение.
-            throw std::out_of_range("TimeSpan ticks are out of range.");
+#if LIBOTHER_DEBUG
+            std::cout << "ERROR: TimeSpan, ticks are out of range." << std::endl;
+#endif
+            throw;
         }
 
         // Сохраняем результат.
@@ -94,7 +98,12 @@ namespace other::time
     TimeSpan TimeSpan::Negate() const
     {
         if (_ticks == MinTicksTimeSpan)
-            throw std::out_of_range("TimeSpan Overflow Negate");
+        {
+#if LIBOTHER_DEBUG
+            std::cout << "ERROR: TimeSpan, overflow negate." << std::endl;
+#endif
+            throw;
+        }
 
         return TimeSpan(-_ticks);
     }

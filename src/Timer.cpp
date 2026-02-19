@@ -168,7 +168,10 @@ namespace other::time::timer
                 }
                 catch (...)
                 {
-                    std::cerr << "Error in timer: " << timer._title << std::endl;
+#if LIBOTHER_DEBUG
+                    std::cout << "ERROR: in timer: " << timer._title << std::endl;
+#endif
+                    throw;
                 }
             }
         }

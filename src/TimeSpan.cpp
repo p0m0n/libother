@@ -1,5 +1,5 @@
 #include "TimeSpan.h"
-#include "private.hpp"
+#include "private/DateTime.hpp"
 
 namespace other::time
 {

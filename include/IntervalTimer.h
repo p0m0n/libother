@@ -14,35 +14,37 @@ namespace other::time::timer
      */
     class IntervalTimer
     {
-    private:
-        TimeSpan _interval;    // Длительность одного периода срабатывания (Get/Set).
-        TimeSpan _current;     // Текущее накопленное время (аккумулятор) (Get/Set).
-
+	private:
+		TimeSpan _interval;          // Длительность одного периода срабатывания (Get/Set).
+        TimeSpan _currents;          // Текущее накопленное время (аккумулятор) (Get/Set).
+		
     public:
         /**
          * @brief Конструктор таймера.
          * @param interval Длительность интервала (по умолчанию 0).
          */
-        IntervalTimer(const TimeSpan& interval = TimeSpan::Zero) : _interval(interval), _current(TimeSpan::Zero) { }
+        IntervalTimer(const TimeSpan& interval = TimeSpan::Zero) : _interval(interval), _currents(TimeSpan::Zero) { }
+		
         /**
          * @brief Накапливает прошедшее время.
          * @param diff Разница во времени с момента последнего обновления (Delta Time).
          */
         void Update(const TimeSpan& diff)
         {
-            _current += diff;
-            // Защита: текущее время не может быть отрицательным (например, при скачках системных часов)
-            if (_current < TimeSpan::Zero)
-                _current = TimeSpan::Zero;
+            _currents += diff;
+            if (_currents < TimeSpan::Zero)
+                _currents = TimeSpan::Zero;
         }
+		
         /**
          * @brief Проверяет, прошел ли заданный интервал.
          * @return true, если накопленное время больше или равно интервалу.
          */
         bool IsPassed()
         {
-            return _current >= _interval;
+            return _currents >= _interval;
         }
+		
         /**
          * @brief Сбрасывает таймер, вычитая интервал из текущего времени.
          * Использование вычитания вместо обнуления позволяет сохранить остаток времени
@@ -50,9 +52,10 @@ namespace other::time::timer
          */
         void Reset()
         {
-            if (_current >= _interval)
-                _current -= _interval;
+            if (_currents >= _interval)
+                _currents -= _interval;
         }
+		
         /**
          * @brief Комбинированный метод: проверяет готовность и сразу сбрасывает таймер.
          * @return true, если интервал пройден и таймер был успешно сброшен.
@@ -66,6 +69,15 @@ namespace other::time::timer
             }
             return false;
         }
+		
+		// Дополнительный метод для получения прогресса от 0.0 до 1.0
+        double Progress() const 
+        {
+            if (_interval.Ticks() == 0) 
+				return 1.0;
+			
+            return static_cast<double>(_currents.Ticks()) / _interval.Ticks();
+        }
         
 		/**
          * @brief Возвращает текущий настроенный интервал срабатывания.
@@ -74,6 +86,7 @@ namespace other::time::timer
         {
             return _interval;
         }
+		
 		/**
          * @brief Устанавливает новую длительность периода.
          */
@@ -85,16 +98,17 @@ namespace other::time::timer
 		/**
          * @brief Возвращает текущее накопленное время.
          */
-        const TimeSpan& Current() const
+        const TimeSpan& Currents() const
         {
-            return _current;
+            return _currents;
         }
+		
 		/**
          * @brief Принудительно задает накопленное значение таймера.
          */
-        void SetCurrent(const TimeSpan& current)
+        void SetCurrents(const TimeSpan& current)
         {
-            _current = current;
+            _currents = current;
         }
     };
 }

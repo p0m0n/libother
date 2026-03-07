@@ -370,7 +370,7 @@ namespace other::time
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         localtime_s(&ltm, &utc_t);
-#elif LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_UNIX
+#else
         localtime_r(&utc_t, &ltm);
 #endif
         // Создаем объект из компонентов, которые нам дала система (уже локальных)

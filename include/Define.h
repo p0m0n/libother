@@ -28,6 +28,8 @@
 #include <stdexcept>
 #include <cassert>
 
+#include <functional>
+#include <cstdio>
 
 // Убираем конфликтные макросы.
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
@@ -37,8 +39,10 @@
 #   undef ARRAYSIZE
 #   undef _ARRAYSIZE
 #   define m_sscanf                    sscanf_s
+#   define m_printf                    printf_s
 #else
 #   define m_sscanf                    sscanf
+#   define m_printf                    printf
 #endif
 
 // Универсальный макрос для вычисления количества элементов C-массива.

@@ -420,12 +420,6 @@ namespace other::time
           */
         static DateTime SpecifyKind(const DateTime& value, const DateTimeKind& kind);
         /**
-         * @brief Преобразует значение текущего объекта DateTime в эквивалентное строковое представление.
-         *
-         * @return Строка в формате "dd.MM.yyyy HH:mm:ss".
-         */
-        std::string ToString() const;
-        /**
          * @brief Преобразует объект DateTime в строковое представление.
          * Метод поддерживает два типа форматирования: стандартные спецификаторы (одиночные символы) и пользовательские шаблоны (произвольные строки).
          * 
@@ -461,7 +455,7 @@ namespace other::time
          * 
          * При использовании технических спецификаторов ('s', 'u', 'r') локальные настройки игнорируются.
          */
-        std::string ToString(const std::string& format) const;
+        std::string ToString(const std::string& format = "G") const;
         // Возвращает массив форматов, поддерживаемых этим классом.
         std::vector<std::string> DateTimeFormats() const;
         /**

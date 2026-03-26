@@ -496,11 +496,6 @@ namespace other::time
         return DateTime(value.Ticks(), kind);
     }
 
-    std::string DateTime::ToString() const
-    {
-        return InternalFormatByChar(*this, 'G');
-    }
-
     std::string DateTime::ToString(const std::string& format) const
     {
         if (format.empty())

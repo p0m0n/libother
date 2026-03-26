@@ -1,44 +1,39 @@
 #ifndef _OTHER_NET_SOCKET_DEFINES_H_
 #define _OTHER_NET_SOCKET_DEFINES_H_
 
-#include "Define.h"
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+#   ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN
+#   endif
+#
+#   include <winsock2.h>
+#   include <ws2tcpip.h>
+#   include <iphlpapi.h>
+#   include "Define.h"
+#
+#   pragma comment(lib, "ws2_32.lib")
+#   pragma comment(lib, "iphlpapi.lib")
+#else
+#   include <sys/socket.h>
+#   include <arpa/inet.h>
+#   include <netdb.h>
+#   include <unistd.h>
+#   include <errno.h>
+#   include <string.h>
+#endif
 
 namespace other::net::sockets
 {
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-    #ifndef WIN32_LEAN_AND_MEAN
-        #define WIN32_LEAN_AND_MEAN
-    #endif
-
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-
-#define GET_NET_ERROR()         WSAGetLastError()
-#define CLOSE_SOCKET(s)         closesocket(s)
-
-#pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "iphlpapi.lib")
-
     typedef SOCKET socket_t;
+#   define GET_NET_ERROR()         WSAGetLastError()
+#   define CLOSE_SOCKET(s)         closesocket(s)
 #else
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h> 
-#include <net/if.h>
-#include <errno.h>
-#include <string.h>
-
-#define GET_NET_ERROR()         errno
-#define INVALID_SOCKET          (socket_t)(~0)
-#define SOCKET_ERROR            -1
-#define CLOSE_SOCKET(s)         close(s)
-
     typedef int socket_t;
+#   define GET_NET_ERROR()         errno
+#   define INVALID_SOCKET          (socket_t)(~0)
+#   define SOCKET_ERROR            -1
+#   define CLOSE_SOCKET(s)         close(s)
 #endif
 
     // Класс для автоматической инициализации Winsock
@@ -49,7 +44,24 @@ namespace other::net::sockets
         {
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
             WSADATA wsaData;
-            WSAStartup(MAKEWORD(2, 2), &wsaData);
+            int err = WSAStartup(MAKEWORD(2, 2), &wsaData);
+            if (err != 0) 
+            {
+                /* Tell the user that we could not find a usable */
+                /* Winsock DLL.                                  */
+                printf("WSAStartup failed with error: %d\n", err);
+                exit(1);
+            }
+
+            if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
+                /* Tell the user that we could not find a usable */
+                /* WinSock DLL.                                  */
+                printf("Could not find a usable version of Winsock.dll\n");
+                WSACleanup();
+                exit(1);
+            }
+            /*else
+                printf("The Winsock 2.2 dll was found okay\n");*/
 #endif
         }
 
@@ -60,10 +72,6 @@ namespace other::net::sockets
 #endif
         }
     };
-
-    // Статический объект: инициализирует сокеты при запуске программы
-    static WSAInitializer _wsa_init_global;
-
 
     inline const char* SocketErrorToString(int nErrorId)
     {
@@ -169,10 +177,14 @@ namespace other::net::sockets
         return s ? s : "Unknown Socket error";
 #endif
     }
-
-    inline const char* SocketErrorString()
-    {
-        return SocketErrorToString(GET_NET_ERROR());
+	
+	inline void CheckSocketError(int result, const std::string &msg) 
+	{
+        if (result == SOCKET_ERROR) 
+		{
+            int errorId = GET_NET_ERROR();
+            throw std::runtime_error("Error: " + msg + " " + SocketErrorToString(errorId));
+        }
     }
 
 }

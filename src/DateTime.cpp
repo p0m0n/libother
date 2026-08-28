@@ -1,5 +1,5 @@
 #include "DateTime.h"
-#include "private/DateTime.hpp"
+#include "private/PrivateTime.hpp"
 
 
 namespace other::time

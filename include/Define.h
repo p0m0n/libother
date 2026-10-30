@@ -1,54 +1,87 @@
 #ifndef LIBOTHER_DEFINE_H
 #define LIBOTHER_DEFINE_H
 
+#pragma once
+
 #include "CompilerDefs.h"
 
-// Базовые потоки и форматирование ввода/вывода.
+// ==========================================
+// 1. СТАНДАРТНЫЕ ПОТОКИ И ВВОД/ВЫВОД
+// ==========================================
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <cstdio>
 
-// Базовые контейнеры и алгоритмы строковой обработки.
+// ==========================================
+// 2. КОНТЕЙНЕРЫ И СТРОКОВЫЕ АЛГОРИТМЫ
+// ==========================================
 #include <string>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <numeric>
 #include <regex>
 
-// Многопоточность, синхронизация и атомарные операции.
+// ==========================================
+// 3. МНОГОПОТОЧНОСТЬ И СИНХРОНИЗАЦИЯ
+// ==========================================
 #include <thread>
 #include <mutex>
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 
-// Работа со временем и базовые исключения/проверки.
+// ==========================================
+// 4. ВРЕМЯ И ВСПОМОГАТЕЛЬНЫЕ СРЕДСТВА
+// ==========================================
 #include <ctime>
 #include <chrono>
 #include <stdexcept>
 #include <cassert>
 
-#include <functional>
-#include <cstdio>
-
-// Убираем конфликтные макросы.
+// ==========================================
+// 5. ИЗОЛЯЦИЯ ПЛАТФОРМ И МАКРОСЫ СОВМЕСТИМОСТИ
+// ==========================================
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-#   include <windows.h>
-#   undef min
-#   undef max
-#   undef ARRAYSIZE
-#   undef _ARRAYSIZE
-#   define m_sscanf                    sscanf_s
-#   define m_printf                    printf_s
-#else
-#   define m_sscanf                    sscanf
-#   define m_printf                    printf
+#include <windows.h>
+
+// Убираем токсичные макросы Windows, конфликтующие со стандартной библиотекой C++
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+#ifdef ARRAYSIZE
+#undef ARRAYSIZE
+#endif
+#ifdef _ARRAYSIZE
+#undef _ARRAYSIZE
 #endif
 
-// Универсальный макрос для вычисления количества элементов C-массива.
-#define ARRAY_SIZE(A)    (sizeof(A)/sizeof((A)[0]))
+// Безопасные аналоги функций для MSVC
+#define m_sscanf sscanf_s
+#define m_printf printf_s
+#else
+    // POSIX-совместимые макросы для Linux / macOS
+#define m_sscanf sscanf
+#define m_printf printf
+#endif
 
-// Явно помечает параметр как неиспользуемый, чтобы подавить предупреждения.
+// ==========================================
+// 6. УНИВЕРСАЛЬНЫЕ ВСПОМОГАТЕЛЬНЫЕ МАКРОСЫ
+// ==========================================
+
+/**
+ * @brief Безопасное вычисление количества элементов встроенного C-массива на этапе компиляции.
+ */
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
+
+ /**
+  * @brief Подавляет предупреждения компилятора C4100 / -Wunused-parameter для неиспользуемых аргументов.
+  */
 #define LIBOTHER_UNUSED(x) (void)(x)
 
-#endif
+#endif // LIBOTHER_DEFINE_H

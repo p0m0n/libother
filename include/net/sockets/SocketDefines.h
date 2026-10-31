@@ -1,8 +1,6 @@
 #ifndef _OTHER_NET_SOCKET_DEFINES_H_
 #define _OTHER_NET_SOCKET_DEFINES_H_
 
-#include "Define.h" // Подключаем общий базовый заголовок библиотеки
-
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 #ifndef WIN32_LEAN_AND_MEAN
@@ -25,6 +23,9 @@
 #include <string.h>
 #include <poll.h>
 #endif
+
+// Подключаем общий базовый заголовок библиотеки
+#include "Define.h"
 
 namespace other::net::sockets
 {

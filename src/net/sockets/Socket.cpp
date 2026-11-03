@@ -1335,6 +1335,61 @@ namespace other::net::sockets
 			return true;
 		}
 
+		// Закрывает текущее соединение сокета и опционально подготавливает его к повторному использованию.
+		bool Socket::Disconnect(bool reuseSocket)
+		{
+			if (!IsCreated())
+			{
+				return false; // Сокет изначально невалиден
+			}
+
+			// Обязательный shutdown для остановки потока данных
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+			::shutdown(_handle, SD_BOTH);
+#else
+			::shutdown(_handle, SHUT_RDWR);
+#endif
+
+			// Логика переиспользования
+			if (reuseSocket)
+			{
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+				// --- WINDOWS (DisconnectEx) ---
+				GUID guidDisconnectEx = WSAID_DISCONNECTEX;
+				LPFN_DISCONNECTEX fnDisconnectEx = nullptr;
+				DWORD bytes = 0;
+
+				if (WSAIoctl(_handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guidDisconnectEx, sizeof(guidDisconnectEx), &fnDisconnectEx, sizeof(fnDisconnectEx), &bytes, nullptr, nullptr) == 0 && fnDisconnectEx)
+				{
+					// Пытаемся сбросить сокет с флагом повторного использования
+					BOOL success = fnDisconnectEx(_handle, nullptr, TF_REUSE_SOCKET, 0);
+					if (!success)
+					{
+						Close();
+						return false; // Ошибка сброса через DisconnectEx
+					}
+					return true; // Успешно сброшен и готов к reuse!
+				}
+				else
+				{
+					Close();
+					return false; // Функция недоступна
+				}
+#else
+				// --- LINUX / UNIX ---
+				// В Linux штатно переиспользовать TCP-сокет без закрытия нельзя, закрываем его
+				Close();
+				return false;
+#endif
+			}
+			else
+			{
+				// Обычное полное закрытие сокета
+				Close();
+				return true;
+			}
+		}
+
 		// Проверяет состояние сокетной опции TCP_NODELAY.
 		bool Socket::IsNoDelay() const
 		{

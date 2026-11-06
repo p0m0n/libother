@@ -1,87 +1,112 @@
 #ifndef LIBOTHER_DEFINE_H
 #define LIBOTHER_DEFINE_H
 
-#pragma once
-
-#include "CompilerDefs.h"
-
 // ==========================================
-// 1. СТАНДАРТНЫЕ ПОТОКИ И ВВОД/ВЫВОД
+// 1. КОНФИГУРАЦИЯ ПРОЕКТА И ПЛАТФОРМЫ
 // ==========================================
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include <cstdio>
+#include "CompilerDefs.h"    // Макросы определения платформы, компилятора и системных опций проекта
 
 // ==========================================
-// 2. КОНТЕЙНЕРЫ И СТРОКОВЫЕ АЛГОРИТМЫ
+// 2. СТАНДАРТНЫЙ ВВОД / ВЫВОД И ПОТОКИ
 // ==========================================
-#include <string>
-#include <vector>
-#include <map>
-#include <algorithm>
-#include <numeric>
-#include <regex>
+#include <iostream>    // Стандартные потоки ввода-вывода в консоль (std::cin, std::cout, std::cerr)
+#include <fstream>     // Работа с файловыми потоками для чтения и записи (std::ifstream, std::ofstream)
+#include <sstream>     // Форматирование и преобразование строк через потоки (std::stringstream)
+#include <iomanip>     // Манипуляторы формата вывода потоков (std::setw, std::setprecision, std::hex)
+#include <cstdio>      // Низкоуровневые C-функции ввода-вывода (printf, sscanf, fopen)
 
 // ==========================================
-// 3. МНОГОПОТОЧНОСТЬ И СИНХРОНИЗАЦИЯ
+// 3. КОНТЕЙНЕРЫ И СТРУКТУРЫ ДАННЫХ (STL)
 // ==========================================
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <condition_variable>
-#include <functional>
+#include <array>       // Фиксированный массив статичной длины C++ (std::array)
+#include <vector>      // Динамический массив с автоматическим изменением размера (std::vector)
+#include <map>         // Упорядоченный ассоциативный массив "ключ-значение" (std::map)
+#include <queue>       // Контейнеры-адаптеры: очередь (std::queue) и очередь с приоритетом (std::priority_queue)
 
 // ==========================================
-// 4. ВРЕМЯ И ВСПОМОГАТЕЛЬНЫЕ СРЕДСТВА
+// 4. СТРОКИ И РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ
 // ==========================================
-#include <ctime>
-#include <chrono>
-#include <stdexcept>
-#include <cassert>
+#include <string>      // Динамические C++ строки с управлением памятью (std::string, std::wstring)
+#include <string_view> // Легковесная ссылка на строку без копирования данных (std::string_view, C++17)
+#include <cstring>     // Низкоуровневые C-функции для байтовых массивов и C-строк (memcpy, memset, strlen)
+#include <regex>       // Шаблоны регулярных выражений для поиска и валидации текста (std::regex)
 
 // ==========================================
-// 5. ИЗОЛЯЦИЯ ПЛАТФОРМ И МАКРОСЫ СОВМЕСТИМОСТИ
+// 5. АЛГОРИТМЫ И МАТЕМАТИКА
+// ==========================================
+#include <algorithm>   // Стандартные алгоритмы сортировки, поиска и трансформации (std::sort, std::find)
+#include <numeric>     // Математические и числовые алгоритмы (std::accumulate, std::gcd, std::iota)
+#include <bit>         // Битовые операции и конвертация типов (std::bit_cast, подсчет установленных бит, C++20)
+
+// ==========================================
+// 6. МНОГОПОТОЧНОСТЬ И СИНХРОНИЗАЦИЯ
+// ==========================================
+#include <thread>             // Создание и управление потоками исполнения (std::thread, std::jthread)
+#include <mutex>              // Примитивы взаимного исключения и блокировки (std::mutex, std::lock_guard)
+#include <atomic>             // Атомарные типы данных для потокобезопасных операций без мьютексов (std::atomic)
+#include <condition_variable> // Условные переменные для синхронизации ожидания между потоками
+
+// ==========================================
+// 7. ВРЕМЯ И ЛОКАЛИЗАЦИЯ
+// ==========================================
+#include <ctime>       // C-стиль работы со временем и датой (time_t, clock(), strftime)
+#include <chrono>      // Современные C++ часы, интервалы и точки времени высокой точности (std::chrono)
+#include <locale>      // Настройки локали, кодировок, региональных форматов чисел и дат (std::locale)
+
+// ==========================================
+// 8. МЕТАПРОГРАММИРОВАНИЕ И ТИПЫ
+// ==========================================
+#include <cstdint>     // Целочисленные типы с гарантированной шириной бит (int32_t, uint64_t, uint8_t)
+#include <type_traits> // Инструменты метапрограммирования и проверки свойств типов на этапе компиляции (std::is_same)
+#include <functional>  // Универсальные обертки функций, лямбд и связывание аргументов (std::function, std::bind)
+
+// ==========================================
+// 9. ОБРАБОТКА ОШИБОК И ОТЛАДКА
+// ==========================================
+#include <stdexcept>   // Стандартные классы исключений (std::runtime_error, std::invalid_argument)
+#include <cassert>     // Макрос assert() для проверки условий в Debug-сборке
+
+// ==========================================
+// 10. ИЗОЛЯЦИЯ ПЛАТФОРМ И МАКРОСЫ СОВМЕСТИМОСТИ
 // ==========================================
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-#include <windows.h>
+    #include <windows.h> // Заголовочный файл WinAPI для ОС Windows
 
-// Убираем токсичные макросы Windows, конфликтующие со стандартной библиотекой C++
-#ifdef min
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
-#ifdef ARRAYSIZE
-#undef ARRAYSIZE
-#endif
-#ifdef _ARRAYSIZE
-#undef _ARRAYSIZE
-#endif
+    // Удаляем конфликтные макросы Windows, нарушающие работу C++ STL
+    #ifdef min
+        #undef min
+    #endif
+    #ifdef max
+        #undef max
+    #endif
+    #ifdef ARRAYSIZE
+        #undef ARRAYSIZE
+    #endif
+    #ifdef _ARRAYSIZE
+        #undef _ARRAYSIZE
+    #endif
 
-// Безопасные аналоги функций для MSVC
-#define m_sscanf sscanf_s
-#define m_printf printf_s
+    // Перенаправление на безопасные (secure) версии функций ввода/вывода MSVC
+    #define m_sscanf sscanf_s
+    #define m_printf printf_s
 #else
-    // POSIX-совместимые макросы для Linux / macOS
-#define m_sscanf sscanf
-#define m_printf printf
+    // Стандартные POSIX-версии функций для Linux / macOS
+    #define m_sscanf sscanf
+    #define m_printf printf
 #endif
 
 // ==========================================
-// 6. УНИВЕРСАЛЬНЫЕ ВСПОМОГАТЕЛЬНЫЕ МАКРОСЫ
+// 11. УНИВЕРСАЛЬНЫЕ ВСПОМОГАТЕЛЬНЫЕ МАКРОСЫ
 // ==========================================
 
 /**
- * @brief Безопасное вычисление количества элементов встроенного C-массива на этапе компиляции.
+ * @brief Безопасное вычисление количества элементов статического C-массива на этапе компиляции.
  */
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
- /**
-  * @brief Подавляет предупреждения компилятора C4100 / -Wunused-parameter для неиспользуемых аргументов.
-  */
+/**
+ * @brief Подавляет предупреждения компилятора (C4100 / -Wunused-parameter) для неиспользуемых параметров.
+ */
 #define LIBOTHER_UNUSED(x) (void)(x)
 
 #endif // LIBOTHER_DEFINE_H

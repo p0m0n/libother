@@ -12,14 +12,14 @@ namespace other::net::sockets
 		bool Socket::SupportsIPv4()
 		{
 			// Пытаемся создать тестовый IPv4-сокет потока
-			socket_t result = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			socket_t result = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 			// Проверяем, создан ли сокет.
 			if (result == INVALID_SOCKET)
 				return false;
 	
 			// Если сокет создался успешно — сразу закрываем его, чтобы не плодить дескрипторы, и возвращаем true
-			closesocket(result);
+			::closesocket(result);
 			return true;
 		}
 
@@ -27,14 +27,14 @@ namespace other::net::sockets
 		bool Socket::SupportsIPv6()
 		{
 			// Пытаемся создать тестовый IPv6-сокет потока
-			socket_t result = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+			socket_t result = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 
 			// Проверяем, создан ли сокет.
 			if (result == INVALID_SOCKET)
 				return false;
 
 			// Если стек IPv6 активен и сокет создан успешно — закрываем его и возвращаем true
-			closesocket(result);
+			::closesocket(result);
 			return true;
 		}
 
@@ -50,15 +50,14 @@ namespace other::net::sockets
 		{
 		}
 
-		// Конструктор-обертка для уже существующего дескриптора (например, возвращенного функцией accept()).
-		// Автоматически запрашивает у системы тип, семейство и протокол сокета.
-		Socket::Socket(socket_t handle, int family)
+		// Конструктор-обертка для существующего системного дескриптора.
+		Socket::Socket(socket_t handle)
 			: _handle(INVALID_SOCKET)
 			, _family(family) // Используем переданное семейство как надежную базу
 			, _type(0)
 			, _protocol(0)
 			, _blocking(true)
-			, _start_t(other::time::DateTime::UtcNow())
+			, _start_t(other::time::DateTime::Now())
 			, _close_t(other::time::DateTime::Zero)
 		{
 			if (handle == INVALID_SOCKET)
@@ -102,46 +101,28 @@ namespace other::net::sockets
 
 			// Фиксируем переданный системный дескриптор в поле класса
 			_handle = handle;
-
-			// Enable dual-stack.
-			if (_family == AF_INET6)
-				SetDualMode(true);
 		}
 
 		// Делегирующий конструктор: создает IPv6 dual-stack сокет по умолчанию для заданного типа и протокола.
 		Socket::Socket(int type, int protocol) : Socket(AF_INET6, type, protocol)
 		{
-			// Проверяем, создан ли сокет.
-			if (IsCreated())
-			{
-				if (!SetDualMode(true))
-				{
-					// Если система по какой-то причине не поддерживает dual-stack,
-					// можно либо залогировать ошибку, либо закрыть сокет. 
-					// Но на современных ОС (Windows Vista+ / Linux 2.4+) всё работает идеально.
-
-					CheckSocketError(SOCKET_ERROR, "dual-stack is not supported, or an error occurred");
-				}
-			}
 		}
 
 		// Основной конструктор: инициализирует поля и создает новый физический сокет в операционной системе через ::socket(...).
 		Socket::Socket(int family, int type, int protocol)
-			: _handle(INVALID_SOCKET)
+			: _handle(::socket(family, type, protocol))
 			, _family(family)         // Поддерживает как AF_INET, так и AF_INET6
 			, _type(type)
 			, _protocol(protocol)
 			, _blocking(true)
-			, _start_t(other::time::DateTime::UtcNow())
+			, _start_t(other::time::DateTime::Now())
 			, _close_t(other::time::DateTime::Zero)
 		{
-			// Создаем реальный сокет (корректно работает с любым семейством)
-			_handle = ::socket(family, type, protocol);
-
+			
 			// Проверяем, создан ли сокет.
 			if (_handle == INVALID_SOCKET)
 			{
-				CheckSocketError(SOCKET_ERROR, "Socket creation failed");
+				CheckSocketError(SOCKET_ERROR, "Socket creation failed.");
 			}
 		}
 
@@ -177,16 +158,16 @@ namespace other::net::sockets
 				_type     = other._type;
 				_protocol = other._protocol;
 				_blocking = other._blocking;
-				_start_t = other._start_t;
-				_close_t = other._close_t;
+				_start_t  = other._start_t;
+				_close_t  = other._close_t;
 
 				other._handle   = INVALID_SOCKET;
 				other._family   = 0;
 				other._type     = 0;
 				other._protocol = 0;
 				other._blocking = true;
-				other._start_t = other::time::DateTime::Zero;
-				other._close_t = other::time::DateTime::Zero;
+				other._start_t  = other::time::DateTime::Zero;
+				other._close_t  = other::time::DateTime::Zero;
 			}
 
 			return *this;
@@ -236,7 +217,7 @@ namespace other::net::sockets
 			_handle = INVALID_SOCKET;
 
 			// Фиксируем точное время закрытия сессии.
-			_close_t = other::time::DateTime::UtcNow();
+			_close_t = other::time::DateTime::Now();
 			return true;
 		}
 
@@ -1192,7 +1173,7 @@ namespace other::net::sockets
 		}
 
 		// Возвращает время работы (аптайм) сокета с момента его создания.
-		other::time::DateTime Socket::Uptime() const
+		other::time::DateTime Socket::SockUptime() const
 		{
 			// Если сокет вообще не создавался, аптайм нулевой
 			if (_start_t.Ticks() == 0)
@@ -1207,7 +1188,7 @@ namespace other::net::sockets
 			}
 
 			// Если сокет еще активен — считаем разницу: [Текущее время] - [Время создания]
-			return other::time::DateTime::UtcNow() - _start_t;
+			return other::time::DateTime::Now() - _start_t;
 		}
 
 		// Освобождает все ресурсы сокета, закрывает его дескриптор и сбрасывает метаданные.

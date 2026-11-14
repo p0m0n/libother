@@ -96,16 +96,14 @@ namespace other::net::sockets
 			 * Используется для отложенной инициализации.
 			 */
 			Socket();
-
 			/**
 			 * @brief Конструктор-обертка для существующего системного дескриптора.
 			 * Применяется на стороне сервера (например, при вызове accept()), когда сокет уже создан операционной системой.
+			 * Автоматически запрашивает у системы тип, семейство и протокол сокета.
 			 *
 			 * @param [in] handle: Готовый сырой дескриптор сокета (SOCKET / socket_t).
-			 * @param [in] family: Семейство адресов сокета (например, AF_INET для IPv4 или AF_INET6 для IPv6). По умолчанию 0 (автоопределение).
 			 */
-			explicit Socket(socket_t handle, int family = 0);
-
+			explicit Socket(socket_t handle);
 			/**
 			 * @brief Делегирующий конструктор для IPv6 Dual-Stack.
 			 * Создает новый физический сокет в ОС для семейства IPv6 с автоматически включенным
@@ -116,7 +114,6 @@ namespace other::net::sockets
 			 * @param [in] protocol: Протокол сетевого уровня (например, IPPROTO_TCP или IPPROTO_UDP).
 			 */
 			Socket(int type, int protocol);
-
 			/**
 			 * @brief Основной конструктор создания сокета.
 			 * Инициализирует поля и создает новый физический сетевой сокет в операционной системе через системный вызов socket().
@@ -126,7 +123,6 @@ namespace other::net::sockets
 			 * @param [in] protocol: Сетевой протокол (например, IPPROTO_TCP, IPPROTO_IP).
 			 */
 			Socket(int family, int type, int protocol);
-
 			/**
 			 * @brief Конструктор перемещения (Move Constructor).
 			 * Безопасно передает владение системным дескриптором от одного объекта к другому без дублирования ресурса.
@@ -134,7 +130,6 @@ namespace other::net::sockets
 			 * @param [in, out] other: Временный или перемещаемый объект Socket, чей дескриптор будет забран.
 			 */
 			Socket(Socket&& other) noexcept;
-
 			/**
 			 * @brief Оператор перемещения (Move Assignment).
 			 * Закрывает текущий сокет (если он был активен) и принимает дескриптор и состояние из другого объекта.
@@ -143,39 +138,33 @@ namespace other::net::sockets
 			 * @return Ссылка на текущий объект.
 			 */
 			Socket& operator=(Socket&& other) noexcept;
-			
 			// Запрещаем операции копирования, так как владение уникальным системным сокетом не должно раздваиваться
 			Socket(const Socket&) = delete;
 			Socket& operator=(const Socket&) = delete;
-			
 			/**
 			 * @brief Деструктор класса.
 			 * 
 			 * Автоматически вызывает метод Dispose() для гарантированного закрытия сокета и освобождения системных ресурсов (реализация RAII).
 			 */
 			~Socket();
-
 			/**
 			 * @brief Проверяет, поддерживается ли стек IPv4 в текущей операционной системе.
 			 * 
 			 * @return true, если создание IPv4-сокетов доступно; в противном случае — false.
 			 */
 			static bool SupportsIPv4();
-
 			/**
 			 * @brief Проверяет, поддерживается ли стек IPv6 в текущей операционной системе.
 			 * 
 			 * @return true, если создание IPv6-сокетов доступно; в противном случае — false.
 			 */
 			static bool SupportsIPv6();
-
 			/**
 			 * @brief Возвращает количество байт, доступных для чтения во входном буфере сокета.
 			 * 
 			 * @return Количество доступных для чтения байт, либо -Ошибка (-1) при сбое.
 			 */
 			int Available() const;
-
 			/**
 			 * @brief Возвращает локальный IP-адрес сокета.
 			 *
@@ -184,7 +173,6 @@ namespace other::net::sockets
 			 * @return Строковое представление локального адреса.
 			 */
 			std::string LocalAddress(bool includePort = false) const;
-
 			/**
 			 * @brief Возвращает удаленный IP-адрес подключенного соседа.
 			 *
@@ -193,14 +181,12 @@ namespace other::net::sockets
 			 * @return Строковое представление удаленного адреса.
 			 */
 			std::string RemoteAddress(bool includePort = false) const;
-
 			/**
 			 * @brief Возвращает сырой системный дескриптор сокета.
 			 * 
 			 * @return Системный дескриптор (SOCKET / socket_t).
 			 */
 			socket_t SockHandle() const;
-
 			/**
 			 * @brief Устанавливает режим блокировки ввода-вывода для сокета.
 			 * 
@@ -209,42 +195,36 @@ namespace other::net::sockets
 			 * @return true, при успехе иначе false.
 			 */
 			bool SetBlocking(bool enable = false);
-
 			/**
 			 * @brief Проверяет, работает ли сокет в блокирующем режиме.
 			 * 
 			 * @return true, если сокет блокирующий; false, если неблокирующий.
 			 */
 			bool IsBlocking() const;
-
 			/**
 			 * @brief Проверяет активность текущего сетевого соединения путем отправки нулевого зонда.
 			 * 
 			 * @return true, если соединение активно и стабильно; false, если разорвано.
 			 */
 			bool IsConnected() const;
-
 			/**
 			 * @brief Возвращает семейство адресов сокета.
 			 * 
 			 * @return Константа семейства (например, AF_INET или AF_INET6).
 			 */
 			int AddressFamily() const;
-
 			/**
 			 * @brief Возвращает используемый сетевой протокол сокета.
 			 * 
 			 * @return Константа протокола (например, IPPROTO_TCP или IPPROTO_UDP).
 			 */
 			int ProtocolType() const;
-
 			/**
 			 * @brief Проверяет, привязан ли сокет к какому-либо сетевому порту (выполнен ли Bind).
 			 * 
 			 * @return true, если привязка выполнена успешно; иначе — false.
 			 */
 			bool IsBound() const;
-
 			/**
 			 * @brief Настраивает эксклюзивное использование порта (опция SO_EXCLUSIVEADDRUSE).
 			 *
@@ -253,14 +233,12 @@ namespace other::net::sockets
 			 * @return true, при успехе иначе false.
 			 */
 			bool SetExclusiveAddressUse(bool exclusive);
-
 			/**
 			 * @brief Проверяет, включено ли эксклюзивное использование порта.
 			 * 
 			 * @return true, если порт закреплен эксклюзивно; иначе — false.
 			 */
 			bool IsExclusiveAddressUse() const;
-
 			/**
 			 * @brief Устанавливает максимальное время ожидания для отправки данных (SO_SNDTIMEO).
 			 *
@@ -273,7 +251,6 @@ namespace other::net::sockets
 			 * @return true, если настройки успешно применились, или false в случае ошибки.
 			 */
 			bool SetSendTimeout(const TimeSpan& time);
-
 			/**
 			 * @brief Устанавливает максимальное время ожидания для получения данных (SO_RCVTIMEO).
 			 *
@@ -286,7 +263,6 @@ namespace other::net::sockets
 			 * @return true, если настройки успешно применились, или false в случае ошибки.
 			 */
 			bool SetRecvTimeout(const TimeSpan& time);
-
 			/**
 			 * @brief Получает текущий таймаут отправки данных (SO_SNDTIMEO).
 			 *
@@ -295,7 +271,6 @@ namespace other::net::sockets
 			 * @return true в случае успешного получения опции, false при ошибке.
 			 */
 			bool GetSendTimeout(TimeSpan& time) const;
-
 			/**
 			 * @brief Получает текущий таймаут получения данных (SO_RCVTIMEO).
 			 *
@@ -304,7 +279,6 @@ namespace other::net::sockets
 			 * @return true в случае успешного получения опции, false при ошибке.
 			 */
 			bool GetRecvTimeout(TimeSpan& time) const;
-
 			/**
 			 * @brief Устанавливает размер физического буфера отправки сокета (SO_SNDBUF).
 			 *
@@ -315,7 +289,6 @@ namespace other::net::sockets
 			 * @return true при успешном применении setsockopt, false при сбое.
 			 */
 			bool SetSendBufferSize(int size);
-
 			/**
 			 * @brief Устанавливает размер физического буфера приема сокета (SO_RCVBUF).
 			 *
@@ -326,7 +299,6 @@ namespace other::net::sockets
 			 * @return true при успешном применении setsockopt, false при сбое.
 			 */
 			bool SetRecvBufferSize(int size);
-
 			/**
 			 * @brief Получает текущий размер физического буфера отправки сокета (SO_SNDBUF).
 			 *
@@ -334,7 +306,6 @@ namespace other::net::sockets
 			 * @return true в случае успешного получения, false при ошибке.
 			 */
 			bool GetSendBufferSize(int& size) const;
-
 			/**
 			 * @brief Получает текущий размер физического буфера приема сокета (SO_RCVBUF).
 			 *
@@ -342,7 +313,6 @@ namespace other::net::sockets
 			 * @return true в случае успешного получения, false при ошибке.
 			 */
 			bool GetRecvBufferSize(int& size) const;
-
 			/**
 			 * @brief Настраивает параметры Linger (поведение закрытия соединения и ожидание отправки оставшихся данных).
 			 *
@@ -351,7 +321,6 @@ namespace other::net::sockets
 			 * @return true при успехе, либо false.
 			 */
 			bool SetLingerState(bool enable, int seconds);
-
 			/**
 			 * @brief Получает текущие параметры Linger сокета.
 			 *
@@ -360,14 +329,12 @@ namespace other::net::sockets
 			 * @return true при успехе, либо false.
 			 */
 			bool GetLingerState(bool& enable, int& seconds) const;
-
 			/**
 			 * @brief Проверяет состояние оптимизации TCP_NODELAY (отключение алгоритма Нейгла).
 			 * 
 			 * @return true, если задержки отключены (NoDelay активен); иначе — false.
 			 */
 			bool IsNoDelay() const;
-
 			/**
 			 * @brief Включает или выключает режим TCP_NODELAY для сокета.
 			 *
@@ -375,14 +342,12 @@ namespace other::net::sockets
 			 * @return true, при успехе иначе false.
 			 */
 			bool SetNoDelay(bool enable = true);
-
 			/**
 			 * @brief Получает текущее значение срока жизни (TTL) сетевых пакетов.
 			 * 
 			 * @return Значение TTL, либо -1 при ошибке.
 			 */
 			short GetTtl() const;
-
 			/**
 			 * @brief Устанавливает значение срока жизни (TTL) для исходящих IP-пакетов.
 			 *
@@ -390,13 +355,11 @@ namespace other::net::sockets
 			 * @return true, при успехе иначе false.
 			 */
 			bool SetTtl(short value);
-
 			/**
 			 * @brief Проверяет состояние флага запрета фрагментации IP-пакетов (Don't Fragment).
 			 * @return true, если флаг DF установлен; иначе — false.
 			 */
 			bool IsDontFragment() const;
-
 			/**
 			 * @brief Устанавливает флаг запрета фрагментации IP-пакетов (Don't Fragment).
 			 *
@@ -404,14 +367,12 @@ namespace other::net::sockets
 			 * @return true, при успехе иначе false.
 			 */
 			bool SetDontFragment(bool enable = true);
-
 			/**
 			 * @brief Проверяет статус закольцовывания мультикаст-трафика (Multicast Loopback).
 			 * 
 			 * @return true, если отправленные multicast-пакеты возвращаются в локальный приемник; иначе — false.
 			 */
 			bool IsMulticastLoopback() const;
-
 			/**
 			 * @brief Включает или выключает закольцовывание multicast-трафика (Multicast Loopback).
 			 * Если включено, отправленные вами multicast-пакеты будут возвращаться в ваш собственный приемный буфер.
@@ -420,28 +381,24 @@ namespace other::net::sockets
 			 * @return true в случае успеха, false при ошибке.
 			 */
 			bool SetMulticastLoopback(bool enable = true);
-
 			/**
 			 * @brief Возвращает тип сокета.
 			 * 
 			 * @return Константа типа (например, SOCK_STREAM, SOCK_DGRAM).
 			 */
 			int SockType() const;
-
 			/**
 			 * @brief Возвращает сетевой порт, к которому в данный момент привязан сокет.
 			 * 
 			 * @return Номер порта в хост-порядке байт, либо 0 (или -1 в зависимости от вашей реализации) при ошибке.
 			 */
 			int LocalPort() const;
-
 			/**
 			 * @brief Возвращает удаленный порт подключенного сокета.
 			 * 
 			 * @return Порт в числовом формате (в host byte order) или 0 в случае ошибки.
 			 */
 			int RemotePort() const;
-
 			/**
 			 * @brief Включает или выключает поддержку широковещательных рассылок (Broadcast).
 			 * 
@@ -449,14 +406,12 @@ namespace other::net::sockets
 			 * @return true в случае успеха, false при ошибке.
 			 */
 			bool SetBroadcast(bool enable);
-
 			/**
 			 * @brief Проверяет, включена ли поддержка широковещательных рассылок (Broadcast) на сокете.
 			 * 
 			 * @return true, если broadcast разрешен, иначе false.
 			 */
 			bool IsBroadcast() const;
-
 			/**
 			 * @brief Включает или выключает режим Dual-Stack (поддержка IPv4 и IPv6 на одном сокете AF_INET6).
 			 * 
@@ -465,21 +420,18 @@ namespace other::net::sockets
 			 * @return true в случае успеха, false при ошибке.
 			 */
 			bool SetDualMode(bool enable);
-
 			/**
 			 * @brief Проверяет, включен ли режим Dual-Stack на сокете AF_INET6.
 			 * 
 			 * @return true, если IPv4 и IPv6 работают одновременно, иначе false.
 			 */
 			bool IsDualMode() const;
-
 			/**
 			 * @brief Возвращает метку времени создания сокета.
 			 * 
 			 * @return Объект `other::time::DateTime`, фиксирующий момент инициализации сокета.
 			 */
 			other::time::DateTime StartTime() const;
-
 			/**
 			 * @brief Возвращает метку времени закрытия сокета.
 			 * 
@@ -487,42 +439,36 @@ namespace other::net::sockets
 			 *         либо `DateTime::Zero`, если сокет еще не закрывался.
 			 */
 			other::time::DateTime CloseTime() const;
-
 			/**
 			 * @brief Возвращает время работы (аптайм) сокета с момента его создания.
 			 * 
 			 * @return Объект DateTime, представляющий длительность существования сокета.
 			 */
-			other::time::DateTime Uptime() const;
-
+			other::time::DateTime SockUptime() const;
 			/**
 			 * @brief Проверяет, создан ли сокет и содержит ли он валидный системный дескриптор.
 			 * 
 			 * @return true, если дескриптор активен (не равен INVALID_SOCKET); иначе — false.
 			 */
 			bool IsCreated() const;
-
 			/**
 			 * @brief Проверяет, закрыт ли сокет.
 			 * 
 			 * @return true, если сокет не создан / закрыт; иначе — false.
 			 */
 			bool IsClosed() const;
-
 			/**
 			 * @brief Настраивает опцию повторного использования адреса и порта (SO_REUSEADDR).
 			 *
 			 * @param [in] enable: true для разрешения повторного использования порта (устраняет ошибку "Address already in use"); false для запрета.
 			 */
 			bool SetReuseAddress(bool enable = true);
-
 			/**
 			 * @brief Проверяет, включена ли опция многократного использования адреса (SO_REUSEADDR).
 			 * 
 			 * @return true, если опция активна; иначе — false.
 			 */
 			bool IsReuseAddress() const;
-
 			/**
 			 * @brief Включает или выключает отправку keep-alive пакетов для контроля соединения.
 			 *
@@ -547,7 +493,6 @@ namespace other::net::sockets
 			 * @return true, если переданный дескриптор валиден (не INVALID_SOCKET); false в противном случае.
 			 */
 			bool Attach(socket_t handle);
-
 			/**
 			 * @brief Отвязывает системный дескриптор от текущего объекта.
 			 *
@@ -575,7 +520,6 @@ namespace other::net::sockets
 			 * @return true, если привязка (bind) выполнена успешно; в противном случае — false.
 			 */
 			bool Bind(int port);
-
 			/**
 			 * @brief Привязывает сокет к конкретному хосту (IP-адресу или доменному имени) и порту.
 			 * Автоматически разрешает сетевые адреса через getaddrinfo.
@@ -593,7 +537,6 @@ namespace other::net::sockets
 			 * @return true, если сокет был успешно закрыт; false, если он уже был закрыт или произошла ошибка.
 			 */
 			bool Close();
-
 			/**
 			 * @brief Закрывает сетевой сокет с возможностью настройки времени ожидания (linger timeout).
 			 *
@@ -633,19 +576,16 @@ namespace other::net::sockets
 			 * После вызова этого метода любые попытки чтения из сокета будут заблокированы или возвратят ошибку.
 			 */
 			void DoRecv();
-
 			/**
 			 * @brief Отключает дальнейшую отправку данных через сокет (shutdown с флагом SD_SEND).
 			 * Сигнализирует удаленной стороне, что этот узел больше не будет отправлять данные (отправка FIN-пакета).
 			 */
 			void DoSend();
-
 			/**
 			 * @brief Полностью отключает и прием, и отправку данных через сокет (shutdown с флагом SD_BOTH).
 			 * Комбинирует блокировку как входящего, так и исходящего трафика перед полным закрытием сокета.
 			 */
 			void DoBoth();
-
 			/**
 			 * @brief Отправляет данные через сокет (базовая версия).
 			 *
@@ -655,7 +595,6 @@ namespace other::net::sockets
 			 * @return Количество фактически отправленных байт, либо -1 при ошибке.
 			 */
 			int Send(const char* data, int size, int flags = 0);
-
 			/**
 			 * @brief Отправляет данные через сокет с указанием смещения в буфере.
 			 *
@@ -666,7 +605,6 @@ namespace other::net::sockets
 			 * @return Количество фактически отправленных байт, либо -1 при ошибке.
 			 */
 			int SendOffset(const char* data, int offset, int size, int flags = 0);
-
 			/**
 			 * @brief Отправляет датаграмму (UDP) на конкретный хост и порт (без предварительного вызова connect).
 			 *
@@ -678,7 +616,6 @@ namespace other::net::sockets
 			 * @return Количество отправленных байт, либо -1 при ошибке.
 			 */
 			int SendTo(const char* data, int size, const std::string& toHost, int port, int flags = 0);
-
 			/**
 			 * @brief Отправляет датаграмму (UDP) со смещением в буфере на указанный хост и порт.
 			 *
@@ -691,7 +628,6 @@ namespace other::net::sockets
 			 * @return Количество отправленных байт, либо -1 при ошибке.
 			 */
 			int SendToOffset(const char* data, int offset, int size, const std::string& toHost, int port, int flags = 0);
-
 			/**
 			 * @brief Принимает входящие данные из сокета (базовая версия).
 			 *
@@ -701,7 +637,6 @@ namespace other::net::sockets
 			 * @return Количество принятых байт. Возврат 0 означает, что соединение корректно закрыто удаленной стороной. При ошибке возвращает -1.
 			 */
 			int Recv(char* data, int size, int flags = 0);
-
 			/**
 			 * @brief Принимает входящие данные из сокета со смещением в целевом буфере.
 			 *
@@ -712,7 +647,6 @@ namespace other::net::sockets
 			 * @return Количество принятых байт, либо -1 при ошибке.
 			 */
 			int RecvOffset(char* data, int offset, int size, int flags = 0);
-
 			/**
 			 * @brief Принимает датаграмму (UDP) и возвращает сетевые реквизиты (IP и порт) отправителя.
 			 *
@@ -724,7 +658,6 @@ namespace other::net::sockets
 			 * @return Количество принятых байт, либо -1 при ошибке.
 			 */
 			int RecvFrom(char* data, int size, std::string& fromHost, int& fromPort, int flags = 0);
-
 			/**
 			 * @brief Принимает датаграмму (UDP) со смещением в буфере и возвращает адрес отправителя.
 			 *
@@ -737,7 +670,6 @@ namespace other::net::sockets
 			 * @return Количество принятых байт, либо -1 при ошибке.
 			 */
 			int RecvFromOffset(char* data, int offset, int size, std::string& fromHost, int& fromPort, int flags = 0);
-
 			/**
 			 * @brief Гарантированно принимает строго заданное количество байт (TCP-поток).
 			 * Блокирует выполнение (или крутится в цикле для неблокирующего сокета), пока не соберет весь блок данных.
@@ -748,18 +680,16 @@ namespace other::net::sockets
 			 * @return true, если все байты успешно получены; false при обрыве соединения или ошибке.
 			 */
 			bool RecvAll(char* data, int size, int flags = 0);
-
 			/**
 			 * @brief Гарантированно принимает строго заданное количество байт со смещением в буфере.
 			 *
-			 * @param [out] data: Указатель на буфер назначения.
+			 * @param [out] data:  Указатель на буфер назначения.
 			 * @param [in] offset: Смещение в буфере, с которого начинать запись.
-			 * @param [in] size: Точное количество байт для приема.
-			 * @param [in] flags: Флаги приема (по умолчанию 0).
+			 * @param [in] size:   Точное количество байт для приема.
+			 * @param [in] flags:  Флаги приема (по умолчанию 0).
 			 * @return true в случае успеха; false при сбое.
 			 */
 			bool RecvAllOffset(char* data, int offset, int size, int flags = 0);
-			
 			/**
 			 * @brief Создает поверхностную копию (клон) конфигурации текущего сокета.
 			 * Создает новый независимый объект Socket, используя те же параметры семейства, типа и протокола.
@@ -767,7 +697,6 @@ namespace other::net::sockets
 			 * @return Новый объект Socket с аналогичными сетевыми параметрами (но с новым неинициализированным дескриптором).
 			 */
 			Socket SockClone();
-
 			/**
 			 * @brief Принудительно освобождает все ресурсы сокета и закрывает его системный дескриптор.
 			 * Реализует паттерн Dispose для ручного управления жизненным циклом (также вызывается автоматически в деструкторе).
@@ -775,7 +704,6 @@ namespace other::net::sockets
 			 * @return true, если сокет был успешно закрыт и очищен; false, если он уже был закрыт или произошла ошибка.
 			 */
 			bool Dispose();
-
 			/**
 			 * @brief Проверяет состояние готовности сокета(-ов) с помощью механизма select.
 			 *
@@ -786,7 +714,6 @@ namespace other::net::sockets
 			 * @return Общее количество готовых сокетов, 0 при таймауте или -1 в случае ошибки.
 			 */
 			static int Select(std::vector<Socket*>& readSockets, std::vector<Socket*>& writeSockets, std::vector<Socket*>& errorSockets, long timeoutMs = 0);
-
 			/**
 			 * @brief Проверяет готовность конкретного текущего сокета к чтению с заданным таймаутом.
 			 *
@@ -794,7 +721,6 @@ namespace other::net::sockets
 			 * @return true, если сокет готов к чтению (есть данные или произошло закрытие соединения); false при таймауте или ошибке.
 			 */
 			bool PollRead(long timeoutMs = 0) const;
-
 			/**
 			 * @brief Проверяет готовность конкретного текущего сокета к записи с заданным таймаутом.
 			 *
@@ -802,7 +728,6 @@ namespace other::net::sockets
 			 * @return true, если буфер готов принимать данные; false при таймауте или ошибке.
 			 */
 			bool PollWrite(long timeoutMs = 0) const;
-
 			/**
 			 * @brief Проверяет наличие ошибок или исключительных состояний на сокете с заданным таймаутом.
 			 *

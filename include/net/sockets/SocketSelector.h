@@ -1,7 +1,12 @@
-#ifndef _OTHER_NET_SOCKETSELECTOR_H_
-#define _OTHER_NET_SOCKETSELECTOR_H_
+#ifndef _OTHER_NET_SOCK_SELECTOR_H_
+#define _OTHER_NET_SOCK_SELECTOR_H_
+
+
+
 
 #include "Socket.h"
+
+
 
 
 namespace other::net::sockets
@@ -113,4 +118,4 @@ namespace other::net::sockets
     };
 }
 
-#endif
+#endif // _OTHER_NET_SOCK_SELECTOR_H_

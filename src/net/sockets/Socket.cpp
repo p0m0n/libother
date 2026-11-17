@@ -8,33 +8,39 @@ static other::net::sockets::WSAInitializer _wsa_init_global;
 
 namespace other::net::sockets
 {
-	    // Проверяет, поддерживает ли текущая ОС и стек протоколов IPv4-сокеты.
+	    // Проверяет, поддерживает ли текущая ОС IPv4-сокеты, если возвращает 'true' то подерживаеться.
 		bool Socket::SupportsIPv4()
 		{
-			// Пытаемся создать тестовый IPv4-сокет потока
+			// Создаём тестовый IPv4-сокет.
 			socket_t result = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 			// Проверяем, создан ли сокет.
 			if (result == INVALID_SOCKET)
+			{
+				SET_NET_ERROR(SOCK_EBADF);
 				return false;
+			}
 	
-			// Если сокет создался успешно — сразу закрываем его, чтобы не плодить дескрипторы, и возвращаем true
-			::closesocket(result);
+			// Если сокет создался успешно — сразу закрываем его, и возвращаем 'true'.
+			CLOSE_SOCKET(result);
 			return true;
 		}
 
-		// Если сокет создался успешно — сразу закрываем его, чтобы не плодить дескрипторы, и возвращаем true
+		// Проверяет, поддерживает ли текущая ОС IPv6-сокеты, если возвращает 'true' то подерживаеться.
 		bool Socket::SupportsIPv6()
 		{
-			// Пытаемся создать тестовый IPv6-сокет потока
+			// Создаём тестовый IPv6-сокет.
 			socket_t result = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 
 			// Проверяем, создан ли сокет.
 			if (result == INVALID_SOCKET)
+			{
+				SET_NET_ERROR(SOCK_EBADF);
 				return false;
+			}
 
-			// Если стек IPv6 активен и сокет создан успешно — закрываем его и возвращаем true
-			::closesocket(result);
+			// Если сокет создался успешно — сразу закрываем его, и возвращаем 'true'.
+			CLOSE_SOCKET(result);
 			return true;
 		}
 
@@ -53,7 +59,7 @@ namespace other::net::sockets
 		// Конструктор-обертка для существующего системного дескриптора.
 		Socket::Socket(socket_t handle)
 			: _handle(INVALID_SOCKET)
-			, _family(family) // Используем переданное семейство как надежную базу
+			, _family(0)
 			, _type(0)
 			, _protocol(0)
 			, _blocking(true)
@@ -61,7 +67,10 @@ namespace other::net::sockets
 			, _close_t(other::time::DateTime::Zero)
 		{
 			if (handle == INVALID_SOCKET)
+			{
+				SET_NET_ERROR(SOCK_EBADF);
 				return;
+			}
 
 			// Получаем тип сокета (например, SOCK_STREAM для TCP или SOCK_DGRAM для UDP) через getsockopt
 			socklen_t optlen = sizeof(_type);
@@ -106,23 +115,48 @@ namespace other::net::sockets
 		// Делегирующий конструктор: создает IPv6 dual-stack сокет по умолчанию для заданного типа и протокола.
 		Socket::Socket(int type, int protocol) : Socket(AF_INET6, type, protocol)
 		{
+			if (!IsDualMode())
+				SetDualMode(true);
 		}
 
 		// Основной конструктор: инициализирует поля и создает новый физический сокет в операционной системе через ::socket(...).
 		Socket::Socket(int family, int type, int protocol)
-			: _handle(::socket(family, type, protocol))
-			, _family(family)         // Поддерживает как AF_INET, так и AF_INET6
-			, _type(type)
-			, _protocol(protocol)
-			, _blocking(true)
-			, _start_t(other::time::DateTime::Now())
+			: _handle(INVALID_SOCKET)
+			, _family(0)
+			, _type(0)
+			, _protocol(0)
+			, _blocking(false)
+			, _start_t(other::time::DateTime::Zero)
 			, _close_t(other::time::DateTime::Zero)
 		{
+			// Создаём сокет.
+			socket_t handle = ::socket(family, type, protocol);
 			
 			// Проверяем, создан ли сокет.
-			if (_handle == INVALID_SOCKET)
+			if (handle != INVALID_SOCKET)
 			{
-				CheckSocketError(SOCKET_ERROR, "Socket creation failed.");
+				// Сохраняем дескриптор сокета.
+			    _handle   = handle;
+				
+				// Сохраняем семейство адресов.
+				_family   = family;
+				
+				// Сохраняем тип сокета.
+			    _type     = type;
+				
+				// Сохраняем протокол сокета.
+			    _protocol = protocol;
+				
+				// Заранее переводим сокет в режим блокировки.
+			    _blocking = true;
+				
+				// Получаем локальное время для только что созданного сокета.
+			    _start_t  = other::time::DateTime::Now();
+			    _close_t  = other::time::DateTime::Zero;
+			}
+			else
+			{
+				SET_NET_ERROR(SOCK_EBADF);
 			}
 		}
 
@@ -235,11 +269,8 @@ namespace other::net::sockets
 		{
 			// Проверка: если сокет не создан, получить порт невозможно
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "LocalPort: Invalid socket.");
 				return -1;
-			}
-
+		
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr);
 
@@ -269,11 +300,8 @@ namespace other::net::sockets
 		int Socket::RemotePort() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "RemotePort: Invalid socket.");
-				return 0;
-			}
-
+				return -1;
+			
 			sockaddr_storage peerAddr = { 0 };
 			socklen_t addrLen = sizeof(peerAddr);
 
@@ -314,10 +342,7 @@ namespace other::net::sockets
 		{
 			// Проверяем валидность дескриптора сокета
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsBound: Invalid socket.");
 				return false;
-			}
 
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr);
@@ -364,10 +389,7 @@ namespace other::net::sockets
 		{
 			// Проверяем, создан ли сокет перед вызовом listen
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Listen: Invalid socket.");
 				return false;
-			}
 
 			// Проверяем корректность длины очереди подключений (backlog)
 			if (backlog < 0)
@@ -412,10 +434,7 @@ namespace other::net::sockets
 		{
 			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Bind: Invalid socket.");
 				return false;
-			}
 
 			// Настраиваем структуру адреса в зависимости от семейства (IPv6 с Dual Stack или чистый IPv4)
 			if (_family == AF_INET6)
@@ -424,9 +443,6 @@ namespace other::net::sockets
 				service.sin6_family = AF_INET6;
 				service.sin6_addr = in6addr_any; // Прослушивание всех интерфейсов
 				service.sin6_port = htons(static_cast<u_short>(port));
-
-				// true = Разрешить Dual Stack (принимать и IPv4, и IPv6 подключения)
-				SetDualMode(true);
 
 				// Выполняем системный bind для IPv6 / Dual Stack сокета
 				if (::bind(_handle, reinterpret_cast<const sockaddr*>(&service), sizeof(service)) == SOCKET_ERROR)
@@ -457,10 +473,7 @@ namespace other::net::sockets
 		bool Socket::Bind(const std::string& host, int port)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Bind(..): Invalid socket.");
 				return false;
-			}
 
 			addrinfo hints = { 0 };
 			hints.ai_family = _family;
@@ -494,18 +507,22 @@ namespace other::net::sockets
 		}
 
 		// Устанавливает таймаут для операций отправки данных (SO_SNDTIMEO).
-		bool Socket::SetSendTimeout(const TimeSpan& time)
+		int Socket::SetSendTimeout(int milliseconds)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetSendTimeout: Invalid socket.");
-				return false;
-			}
+				return -1;
 
-			int timeout = static_cast<int>(time.Milliseconds());
+			int timeout = static_cast<int>(milliseconds);
 
 			if (timeout < -1)
-				return false; // Исправлено: возвращаем bool вместо -1
+			{
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+				WSASetLastError(WSAEINVAL);
+#else
+				errno = EINVAL;
+#endif
+				return -1;
+			}
 
 			if (timeout > 0 && timeout < 500)
 				timeout = 500; // Минимальный порог (если требуется по логике)
@@ -513,40 +530,45 @@ namespace other::net::sockets
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			int optlen = sizeof(int);
 			if (::setsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), optlen) != SOCKET_ERROR)
-				return true;
+				return 0;
 #else
 	// В Linux / POSIX требуется структура struct timeval (секунды и микросекунды)
 			timeval tv;
-			if (timeout == -1) {
+			if (timeout == -1) 
+			{
 				tv.tv_sec = 0;  // 0 в POSIX timeval для SO_SNDTIMEO обычно означает отсутствие тайм-аута (бесконечность)
 				tv.tv_usec = 0;
 			}
-			else {
+			else 
+			{
 				tv.tv_sec = timeout / 1000;
 				tv.tv_usec = (timeout % 1000) * 1000;
 			}
+			
 			socklen_t optlen = sizeof(tv);
 			if (::setsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&tv), optlen) != SOCKET_ERROR)
-				return true;
+				return 0;
 #endif
-
-			CheckSocketError(SOCKET_ERROR, "setsockopt(SO_SNDTIMEO)");
-			return false;
+			return -1;
 		}
 
 		// Устанавливает таймаут для операций приема данных(SO_RCVTIMEO).
-		bool Socket::SetRecvTimeout(const TimeSpan& time)
+		int Socket::SetRecvTimeout(int milliseconds)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetRecvTimeout: Invalid handle.");
-				return false;
-			}
+				return -1;
 
-			int timeout = static_cast<int>(time.Milliseconds());
+			int timeout = static_cast<int>(milliseconds);
 
 			if (timeout < -1)
-				return false;
+			{
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+				WSASetLastError(WSAEINVAL);
+#else
+				errno = EINVAL;
+#endif
+				return -1;
+			}
 
 			if (timeout > 0 && timeout < 500)
 				timeout = 500; // Минимальный порог тайм-аута (если требуется)
@@ -554,167 +576,169 @@ namespace other::net::sockets
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			int optlen = sizeof(int);
 			if (::setsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), optlen) != SOCKET_ERROR)
-				return true;
+				return 0;
 #else
 	// В Linux / POSIX для SO_RCVTIMEO требуется структура struct timeval
 			timeval tv;
-			if (timeout == -1) {
+			if (timeout == -1) 
+			{
 				tv.tv_sec = 0;  // 0 означает отсутствие тайм-аута (бесконечность)
 				tv.tv_usec = 0;
 			}
-			else {
+			else 
+			{
 				tv.tv_sec = timeout / 1000;
 				tv.tv_usec = (timeout % 1000) * 1000;
 			}
+
 			socklen_t optlen = sizeof(tv);
 			if (::setsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), optlen) != SOCKET_ERROR)
-				return true;
+				return 0;
 #endif
-
-			CheckSocketError(SOCKET_ERROR, "setsockopt(SO_RCVTIMEO)");
-			return false;
+			return -1;
 		}
 
 		// Получает текущий таймаут отправки данных (SO_SNDTIMEO).
-		bool Socket::GetSendTimeout(TimeSpan& time) const
+		int Socket::GetSendTimeout() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "GetSendTimeout: Invalid handle.");
-				return false;
-			}
-
+				return -1;
+			
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			int timeoutMs = 0;
 			int optlen = sizeof(int);
 
 			if (::getsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<char*>(&timeoutMs), &optlen) == SOCKET_ERROR)
-				return false;
+				return -1;
 
-			time = (timeoutMs == 0) ? TimeSpan::FromMilliseconds(-1) : TimeSpan::FromMilliseconds(timeoutMs);
+			// В Windows 0 означает бесконечный таймаут, приводим к стандарту -1
+			return (timeoutMs == 0) ? -1 : timeoutMs;
 #else
 			timeval tv = { 0 };
 			socklen_t optlen = sizeof(tv);
 
 			if (::getsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<char*>(&tv), &optlen) == SOCKET_ERROR)
-				return false;
+				return -1;
 
 			int64_t ms = static_cast<int64_t>(tv.tv_sec) * 1000 + tv.tv_usec / 1000;
-			time = (ms == 0) ? TimeSpan::FromMilliseconds(-1) : TimeSpan::FromMilliseconds(ms);
+			// Если структура пустая (0), возвращаем -1 (бесконечность), иначе возвращаем посчитанные миллисекунды
+			return (ms == 0) ? -1 : static_cast<int>(ms);
 #endif
-			return true;
 		}
 
 		// Получает текущий таймаут получения данных (SO_RCVTIMEO).
-		bool Socket::GetRecvTimeout(TimeSpan& time) const
+		int Socket::GetRecvTimeout() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "GetRecvTimeout: Invalid handle.");
-				return false;
-			}
+				return -1;
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			int timeoutMs = 0;
 			int optlen = sizeof(int);
 
 			if (::getsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&timeoutMs), &optlen) == SOCKET_ERROR)
-				return false;
+				return -1;
 
-			time = (timeoutMs == 0) ? TimeSpan::FromMilliseconds(-1) : TimeSpan::FromMilliseconds(timeoutMs);
+			return (timeoutMs == 0) ? -1 : timeoutMs;
 #else
 			timeval tv = { 0 };
 			socklen_t optlen = sizeof(tv);
 
 			if (::getsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&tv), &optlen) == SOCKET_ERROR)
-				return false;
+				return -1;
 
 			int64_t ms = static_cast<int64_t>(tv.tv_sec) * 1000 + tv.tv_usec / 1000;
-			time = (ms == 0) ? TimeSpan::FromMilliseconds(-1) : TimeSpan::FromMilliseconds(ms);
+			return (ms == 0) ? -1 : static_cast<int>(ms);
 #endif
-			return true;
 		}
 
-		bool Socket::SetSendBufferSize(int size)
+		// Устанавливает размер буфера отправки сокета (SO_SNDBUF).
+		int Socket::SetSendBufferSize(int size)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetSendBufferSize: Invalid handle.");
-				return false;
-			}
-
-
+				return -1;
+			
 			if (size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "setsockopt(SO_SNDBUF): Invalid argument.");
-				return false;
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+				WSASetLastError(WSAEINVAL);
+#else
+				errno = EINVAL;
+#endif
+				return -1;
 			}
 
 			int optlen = sizeof(int);
-			return ::setsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR;
-		}
-
-		bool Socket::SetRecvBufferSize(int size)
-		{
-			if (!IsCreated())
+			if (::setsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "SetRecvBufferSize: Invalid handle.");
-				return false;
+				return 0;
 			}
 
+			return -1;
+		}
+
+		// Устанавливает размер буфера получения сокета (SO_RCVBUF).
+		int Socket::SetRecvBufferSize(int size)
+		{
+			if (!IsCreated())
+				return -1;
 
 			if (size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "setsockopt(SO_RCVBUF): Invalid argument.");
-				return false;
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+				WSASetLastError(WSAEINVAL);
+#else
+				errno = EINVAL;
+#endif
+				return -1; 
 			}
 
 			int optlen = sizeof(int);
-			return ::setsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR;
-		}
-
-		bool Socket::GetSendBufferSize(int& size) const
-		{
-			if (!IsCreated())
+			if (::setsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "GetSendBufferSize: Invalid handle.");
-				return false;
+				return 0;
 			}
 
+			return -1;
+		}
+
+		// Получает текущий размер буфера отправки сокета (SO_SNDBUF).
+		int Socket::GetSendBufferSize() const
+		{
+			if (!IsCreated())
+				return -1;
+			
 			int bufferSize = 0;
 			socklen_t optlen = sizeof(bufferSize);
 
 			int result = ::getsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&bufferSize), &optlen);
-			if (result == SOCKET_ERROR) 
+			if (result == SOCKET_ERROR)
 			{
 				CheckSocketError(SOCKET_ERROR, "getsockopt(SO_SNDBUF)");
-				return false;
+				return -1;
 			}
 
-			size = bufferSize;
-			return true;
+			return bufferSize;
 		}
 
-		bool Socket::GetRecvBufferSize(int& size) const
+		// Получает текущий размер буфера получения сокета (SO_RCVBUF).
+		int Socket::GetRecvBufferSize() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "GetRecvBufferSize: Invalid handle.");
-				return false;
-			}
+				return -1;
+			
 
 			int bufferSize = 0;
 			socklen_t optlen = sizeof(bufferSize);
 
 			int result = ::getsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char*>(&bufferSize), &optlen);
-			if (result == SOCKET_ERROR) 
+			if (result == SOCKET_ERROR)
 			{
 				CheckSocketError(SOCKET_ERROR, "getsockopt(SO_RCVBUF)");
-				return false;
+				return -1;
 			}
 
-			size = bufferSize;
-			return true;
+			return bufferSize; // Успех: возвращаем размер буфера напрямую
 		}
 
 		// Отключает дальнейший прием данных через сокет (shutdown SD_RECEIVE).
@@ -736,7 +760,14 @@ namespace other::net::sockets
 		}
 		
 		// Проверяет, создан ли сокет (дескриптор не равен INVALID_SOCKET).
-		bool Socket::IsCreated() const { return _handle != INVALID_SOCKET; }
+		bool Socket::IsCreated() const 
+		{ 
+			if (_handle != INVALID_SOCKET)
+				return true;
+
+			SET_NET_ERROR(SOCK_EBADF);
+			return false; 
+		}
 		// Проверяет, закрыт ли сокет (дескриптор равен INVALID_SOCKET).
 		bool Socket::IsClosed() const { return _handle == INVALID_SOCKET; }
 
@@ -744,10 +775,7 @@ namespace other::net::sockets
 		bool Socket::IsConnected() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsConnected: Invalid socket.");
 				return false;
-			}
 
 			// Пытаемся отправить 0 байт неблокирующим образом для проверки статуса соединения
 			char dummy = 0;
@@ -797,10 +825,7 @@ namespace other::net::sockets
 		int Socket::Available() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Available: Invalid socket.");
-				return -1;
-			}
+				return false;
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			u_long available = 0;
@@ -820,10 +845,7 @@ namespace other::net::sockets
 		std::string Socket::LocalAddress(bool includePort) const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "LocalAddress: Invalid socket.");
-				return "";
-			}
+				return false;
 
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr);
@@ -883,10 +905,7 @@ namespace other::net::sockets
 		std::string Socket::RemoteAddress(bool includePort) const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "RemoteAddress: Invalid socket.");
 				return "";
-			}
 
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr); // Используем socklen_t для совместимости с Linux
@@ -946,12 +965,8 @@ namespace other::net::sockets
 		// Управляет опцией многократного использования локального адреса и порта (SO_REUSEADDR).
 		bool Socket::SetReuseAddress(bool enable)
 		{
-			// Проверка валидности дескриптора сокета перед настройкой опции
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetReuseAddress: Invalid socket.");
 				return false;
-			}
 
 			// Используем стандартный int (1/0) вместо специфичного для Windows BOOL
 			int optVal = enable ? 1 : 0;
@@ -969,12 +984,8 @@ namespace other::net::sockets
 		// Проверяет, включена ли опция многократного использования адреса (SO_REUSEADDR) для сокета.
 		bool Socket::IsReuseAddress() const
 		{
-			// Проверка: если дескриптор недействителен, фиксируем ошибку и возвращаем false
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsReuseAddress: Invalid socket.");
 				return false;
-			}
 
 			int optval = 0; // Значение опции теперь корректно типа int
 			socklen_t optlen = sizeof(optval); // А размер — типа socklen_t
@@ -990,10 +1001,7 @@ namespace other::net::sockets
 		bool Socket::SetKeepAlive(bool enable)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetKeepAlive: Invalid socket.");
 				return false;
-			}
 
 			int optionValue = enable ? 1 : 0;
 			return (::setsockopt(_handle, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<const char*>(&optionValue), sizeof(optionValue)) != SOCKET_ERROR);
@@ -1003,10 +1011,7 @@ namespace other::net::sockets
 		bool Socket::IsKeepAlive() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsKeepAlive: Invalid socket.");
 				return false;
-			}
 
 			int optionValue = 0;
 			socklen_t optionLen = sizeof(optionValue);
@@ -1039,12 +1044,8 @@ namespace other::net::sockets
 		// Переключает режим работы сокета между блокирующим и неблокирующим (FIONBIO).
 		bool Socket::SetBlocking(bool enable)
 		{
-			// Проверяем, создан ли сокет
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetBlocking invalid socket.");
-				return false; // Исправлено: возвращаем false вместо пустого return
-			}
+				return false;
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			// В Windows используется ioctlsocket: 0 для блокирующего, 1 для неблокирующего
@@ -1086,10 +1087,7 @@ namespace other::net::sockets
 		bool Socket::IsBlocking() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsBlocking: Invalid socket.");
 				return false;
-			}
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			return _blocking;
@@ -1108,10 +1106,7 @@ namespace other::net::sockets
 		bool Socket::SetLingerState(bool enable, int seconds)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetLingerState: Invalid socket.");
 				return false;
-			}
 
 			// Настраиваем структуру linger для плавного/гарантированного закрытия (graceful close)
 			linger l_opt = { 0 };
@@ -1132,10 +1127,7 @@ namespace other::net::sockets
 		bool Socket::GetLingerState(bool& enable, int& seconds) const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "GetLingerState: Invalid socket.");
 				return false;
-			}
 
 			linger l_opt = { 0 };
 			socklen_t optlen = sizeof(l_opt);
@@ -1194,7 +1186,7 @@ namespace other::net::sockets
 		// Освобождает все ресурсы сокета, закрывает его дескриптор и сбрасывает метаданные.
 		bool Socket::Dispose()
 		{
-			// Пытаемся закрыть системный сокет
+			// Пытаемся закрыть системный сокет.
 			bool result = Close();
 
 			// Гарантированно сбрасываем метаданные объекта в начальное состояние, независимо от того, был ли сокет открыт прямо сейчас или уже закрыт ранее.
@@ -1255,12 +1247,8 @@ namespace other::net::sockets
 		// Устанавливает сетевое соединение с удаленным хостом по указанному IP-адресу/домену и порту.
 		bool Socket::Connect(const std::string& host, int port)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Cannot connect: Invalid socket.");
 				return false;
-			}
 
 			// Настраиваем структуру hints для разрешения адреса через getaddrinfo
 			addrinfo hints = { 0 };
@@ -1320,9 +1308,7 @@ namespace other::net::sockets
 		bool Socket::Disconnect(bool reuseSocket)
 		{
 			if (!IsCreated())
-			{
-				return false; // Сокет изначально невалиден
-			}
+				return false;
 
 			// Обязательный shutdown для остановки потока данных
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
@@ -1374,12 +1360,8 @@ namespace other::net::sockets
 		// Проверяет состояние сокетной опции TCP_NODELAY.
 		bool Socket::IsNoDelay() const
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsNoDelay: Invalid socket.");
 				return false;
-			}
 
 			int optval = 0;             // Значение опции — строго int
 			socklen_t optlen = sizeof(optval); // Размер — socklen_t
@@ -1398,12 +1380,8 @@ namespace other::net::sockets
 		// Настраивает опцию TCP_NODELAY для сокета (отключает алгоритм Нейгла для снижения задержек).
 		bool Socket::SetNoDelay(bool enable)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetNoDelay: Invalid socket.");
 				return false;
-			}
 
 			// TCP_NODELAY принимает int (1 для отключения алгоритма Нейгла, 0 для включения)
 			int optval = enable ? 1 : 0;
@@ -1420,10 +1398,7 @@ namespace other::net::sockets
 		short Socket::GetTtl() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "GetTtl: Invalid socket.");
 				return -1;
-			}
 
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
@@ -1458,12 +1433,8 @@ namespace other::net::sockets
 		// Устанавливает значение срока жизни (TTL) для IP-пакетов.
 		bool Socket::SetTtl(short value)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetTtl: Invalid socket.");
 				return false;
-			}
 
 			int optval = static_cast<int>(value);
 
@@ -1495,12 +1466,8 @@ namespace other::net::sockets
 		// Проверяет состояние запрета фрагментации IP-пакетов (Don't Fragment / DF).
 		bool Socket::IsDontFragment() const
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsDontFragment: Invalid socket.");
 				return false;
-			}
 
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
@@ -1544,12 +1511,8 @@ namespace other::net::sockets
 		// Настраивает флаг запрета фрагментации (Don't Fragment) для сокета.
 		bool Socket::SetDontFragment(bool value)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetDontFragment: Invalid socket.");
 				return false;
-			}
 
 			if (_family == AF_INET)
 			{
@@ -1591,12 +1554,8 @@ namespace other::net::sockets
 		// Получает текущее состояние закольцовывания multicast-трафика.
 		bool Socket::IsMulticastLoopback() const
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsMulticastLoopback: Invalid socket.");
 				return false;
-			}
 
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
@@ -1626,12 +1585,8 @@ namespace other::net::sockets
 		// Включает или отключает эхо-возврат (loopback) исходящих multicast-пакетов обратно на этот же сокет.
 		bool Socket::SetMulticastLoopback(bool enable)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetMulticastLoopback: Invalid socket.");
 				return false;
-			}
 
 			int value = enable ? 1 : 0;
 
@@ -1652,12 +1607,8 @@ namespace other::net::sockets
 		// Включает или отключает возможность отправки широковещательных (broadcast) сообщений.
 		bool Socket::SetBroadcast(bool enable)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetBroadcast: Invalid socket.");
 				return false;
-			}
 
 			int value = enable ? 1 : 0;
 			return ::setsockopt(_handle, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&value), sizeof(value)) != SOCKET_ERROR;
@@ -1666,12 +1617,8 @@ namespace other::net::sockets
 		// Проверяет, включена ли поддержка широковещательных рассылок (Broadcast) на сокете.
 		bool Socket::IsBroadcast() const
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsBroadcast: Invalid socket.");
 				return false;
-			}
 
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
@@ -1719,10 +1666,7 @@ namespace other::net::sockets
 		bool Socket::IsExclusiveAddressUse() const
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "IsExclusiveAddressUse: Invalid socket.");
 				return false;
-			}
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			int optval = 0;
@@ -1741,12 +1685,8 @@ namespace other::net::sockets
 		// Отправляет данные через сокет (базовая версия).
 		int Socket::Send(const char* data, int size, int flags)
 		{
-			// Проверяем, создан ли сокет.
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Send: Invalid socket.");
-				return -1;
-			}
+				return false;
 
 			// Проверяем валидность указателя и размера буфера.
 			if (data == nullptr || size <= 0)
@@ -1785,10 +1725,7 @@ namespace other::net::sockets
 		int Socket::SendOffset(const char* data, int offset, int size, int flags)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SendOffset: Invalid socket.");
-				return -1;
-			}
+				return false;
 
 			if (data == nullptr || size <= 0 || offset < 0)
 			{
@@ -1832,10 +1769,7 @@ namespace other::net::sockets
 		int Socket::SendTo(const char* data, int size, const std::string& toHost, int port, int flags)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SendTo: Invalid socket.");
-				return -1;
-			}
+				return false;
 
 			if (data == nullptr && size > 0)
 			{
@@ -1910,10 +1844,7 @@ namespace other::net::sockets
 		int Socket::Recv(char* data, int size, int flags)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "Recv: Invalid socket.");
 				return -1;
-			}
 
 			if (data == nullptr || size <= 0)
 			{
@@ -1949,12 +1880,8 @@ namespace other::net::sockets
 		// Принимает входящие данные из сокета со смещением в целевом буфере.
 		int Socket::RecvOffset(char* data, int offset, int size, int flags)
 		{
-			// Проверяем, создан ли сокет
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "RecvOffset: Invalid socket.");
 				return -1;
-			}
 
 			// Проверяем валидность указателя, размера и смещения.
 			if (data == nullptr || size <= 0 || offset < 0)
@@ -1999,10 +1926,7 @@ namespace other::net::sockets
 		int Socket::RecvFrom(char* data, int size, std::string& fromHost, int& fromPort, int flags)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "RecvFrom: Invalid socket.");
 				return -1;
-			}
 
 			if (data == nullptr || size <= 0)
 			{

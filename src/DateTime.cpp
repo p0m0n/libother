@@ -20,10 +20,7 @@ namespace other::time
         // Проверка границ допустимого диапазона.
         if (ticks < MinTicksDateTime || ticks > MaxTicksDateTime)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, ticks are out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: ticks are out of range.");
         }
     }
 
@@ -39,10 +36,7 @@ namespace other::time
         // Базовая проверка корректности месяца и года.
         if ((year < 1 || year > 9999) || (month < 1 || month > 12))
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, year or Month out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: year or Month out of range.");
         }
 
         // Выбираем таблицу дней (високосный год или нет).
@@ -51,19 +45,13 @@ namespace other::time
         // Проверка диапазона дней в конкретном месяце.
         if (day < 1 || day >(days[month] - days[month - 1]))
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, day out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: day out of range.");
         }
 
         // Проверка диапазона времени.
         if ((hour < 0 || hour >= 24) || (minute < 0 || minute >= 60) || (second < 0 || second >= 60) || (millisecond < 0 || millisecond >= 1000))
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, time components out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: time components out of range.");
         }
 
         // Формула: дни за полные года + поправки на високосные года + дни в текущем году.
@@ -77,10 +65,7 @@ namespace other::time
         // Проверка границ допустимого диапазона.
         if (ticks < MinTicksDateTime || ticks > MaxTicksDateTime)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, ticks are out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: ticks are out of range.");
         }
 
         // Сохраняем результат.
@@ -290,10 +275,7 @@ namespace other::time
     {
         if (months < -120000 || months > 120000)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, months out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: months out of range.");
         }
 
         // Получаем компоненты.
@@ -325,10 +307,7 @@ namespace other::time
     {
         if (years < -10000 || years > 10000)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, years out of range." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: years out of range.");
         }
 
         // Получаем компоненты.
@@ -1005,10 +984,7 @@ namespace other::time
         // Проверка на отрицательное значение
         if (fileTime < 0)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, fileTime is less than 0." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: fileTime is less than 0.");
         }
 
         try 
@@ -1019,10 +995,7 @@ namespace other::time
             // Проверяем верхнюю границу (MaxTicks)
             if (universalTicks > MaxTicksDateTime)
             {
-#if LIBOTHER_DEBUG
-                std::cout << "ERROR: DateTime, fileTime exceeds MaxValue." << std::endl;
-#endif
-                throw;
+                throw std::out_of_range("DateTime: fileTime exceeds MaxValue.");
             }
 
             // Возвращаем объект с флагом Utc
@@ -1045,9 +1018,7 @@ namespace other::time
         // Минимум: 315537888000000000 тактов (100 год)
         if (ticks < 315537888000000000LL) 
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, ticks are too small for OLE Automation Date." << std::endl; throw;
-#endif
+            throw std::out_of_range("DateTime: ticks are too small for OLE Automation Date.");
         }
 
         // Если дата 0001-01-01, OLE считает это нулевым значением в некоторых контекстах, то возвращаем 0.0 именно для 30.12.1899.
@@ -1084,10 +1055,7 @@ namespace other::time
         // Эти числа соответствуют минимальному и максимальному значению OADate.
         if (value >= 2958466.0 || value <= -657435.0) 
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, OADate is out of range (must be between 0100 and 10000 year)." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("DateTime: OADate is out of range (must be between 0100 and 10000 year).");
         }
 
         // Конвертируем double в миллисекунды с округлением, 86400000 — количество миллисекунд в сутках.

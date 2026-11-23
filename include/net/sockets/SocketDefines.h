@@ -127,7 +127,7 @@ namespace other::net::sockets
 #   define SOCK_EISCONN             WSAEISCONN             // Сокет уже подключен (попытка вызвать connect на уже соединенном сокете)
 #   define SOCK_ENOTCONN            WSAENOTCONN            // Сокет не подключен (попытка отправки данных через сокет, который еще не соединен)
 #   define SOCK_ESHUTDOWN           WSAESHUTDOWN           // Нельзя отправить данные: сокет уже закрыт для отправки (вызван shutdown)
-#   define SOCK_ETOOМANYREFS        WSAETOOMANYREFS        // Слишком много ссылок на объект ядра
+#   define SOCK_ETOOMANYREFS        WSAETOOMANYREFS        // Слишком много ссылок на объект ядра
 #   define SOCK_ETIMEDOUT           WSAETIMEDOUT           // Истекло время ожидания (тайм-аут соединения или сетевой операции)
 #   define SOCK_ECONNREFUSED        WSAECONNREFUSED        // Соединение отклонено (на удаленном хосте никто не слушает этот порт)
 
@@ -194,7 +194,7 @@ namespace other::net::sockets
 #   define SOCK_EISCONN             EISCONN
 #   define SOCK_ENOTCONN            ENOTCONN
 #   define SOCK_ESHUTDOWN           ESHUTDOWN
-#   define SOCK_ETOOМANYREFS        ELOOP
+#   define SOCK_ETOOMANYREFS        ELOOP
 #   define SOCK_ETIMEDOUT           ETIMEDOUT
 #   define SOCK_ECONNREFUSED        ECONNREFUSED
 #   define SOCK_ELOOP               ELOOP

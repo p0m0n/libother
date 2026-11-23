@@ -983,31 +983,17 @@ namespace other::time
     {
         // Проверка на отрицательное значение
         if (fileTime < 0)
-        {
             throw std::out_of_range("DateTime: fileTime is less than 0.");
-        }
 
-        try 
-        {
-            // Добавляем смещение к времени файла, чтобы получить системные тики
-            int64_t universalTicks = fileTime + FILE_TIME_OFFSET;
+        // Добавляем смещение к времени файла, чтобы получить системные тики.
+        int64_t universalTicks = fileTime + FILE_TIME_OFFSET;
 
-            // Проверяем верхнюю границу (MaxTicks)
-            if (universalTicks > MaxTicksDateTime)
-            {
-                throw std::out_of_range("DateTime: fileTime exceeds MaxValue.");
-            }
+        // Проверяем верхнюю границу (MaxTicks).
+        if (universalTicks > MaxTicksDateTime)
+            throw std::out_of_range("DateTime: fileTime exceeds MaxValue.");
 
-            // Возвращаем объект с флагом Utc
-            return DateTime(universalTicks, DateTimeKind::Utc);
-        }
-        catch (...) 
-        {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: DateTime, fileTime is too large for DateTime." << std::endl;
-            throw;
-#endif
-        }
+        // Возвращаем объект с флагом Utc.
+        return DateTime(universalTicks, DateTimeKind::Utc);
     }
 
     double DateTime::ToOADate() const

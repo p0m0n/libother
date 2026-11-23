@@ -1026,9 +1026,17 @@ namespace other::net::sockets
 		// Безопасно связывает объект с существующим системным дескриптором сокета.
 		bool Socket::Attach(socket_t handle)
 		{
-			Dispose(); // Закрываем текущий дескриптор, если он был открыт
-			_handle = handle;
-			return _handle != INVALID_SOCKET;
+			if (handle != INVALID_SOCKET)
+			{
+				// Закрываем текущий дескриптор, если он был открыт.
+				Dispose();
+				
+				// Сохраняем дескриптор сокета.
+			    _handle = handle;
+				return true;
+			}
+		
+			return false;
 		}
 
 		// Отвязывает системный дескриптор от текущего объекта.

@@ -165,6 +165,7 @@ namespace other::time::timer
                 {
                     timer._callable->callAfterTimeout();
                     timer._called = true;
+					timer._finish = true;
                 }
                 catch (...)
                 {

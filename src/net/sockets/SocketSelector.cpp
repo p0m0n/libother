@@ -7,7 +7,8 @@ namespace other::net::sockets
     // Добавляет сокет в набор для отслеживания.
     void SocketSelector::Add(const Socket& socket, bool watchRead, bool watchWrite)
     {
-        if (!socket.IsCreated()) return;
+        if (!socket.IsCreated()) 
+			return;
 
         // Если сокет уже отслеживается, просто обновляем его флаги событий
         for (auto& pfd : _pollFds)
@@ -47,7 +48,8 @@ namespace other::net::sockets
     // Удаляет сокет из набора отслеживания.
     void SocketSelector::Remove(const Socket& socket)
     {
-        if (!socket.IsCreated()) return;
+        if (!socket.IsCreated()) 
+			return;
 
         socket_t handle = socket.SockHandle();
         for (size_t i = 0; i < _pollFds.size(); ++i)

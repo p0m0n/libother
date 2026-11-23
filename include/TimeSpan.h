@@ -1,5 +1,5 @@
-#ifndef _OTHER_TIMESPAN_H_
-#define _OTHER_TIMESPAN_H_
+#ifndef LIBOTHER_TIMESPAN_H
+#define LIBOTHER_TIMESPAN_H
 
 #include "Define.h"
 
@@ -21,7 +21,7 @@ namespace other::time
         static const TimeSpan MaxValue;    // Максимально возможное значение TimeSpan.
         static const TimeSpan MinValue;    // Минимально возможное значение TimeSpan.
         /**@brief Инициализирует новый экземпляр TimeSpan заданным числом тактов.
-		 * Допускаются отрицательные значения (для создания отрицательного интервала).
+         * Допускаются отрицательные значения (для создания отрицательного интервала).
          *
          * @param [in] ticks: Интервал времени, выраженный в единицах измерения, равных 100 нс.
          * 
@@ -35,7 +35,7 @@ namespace other::time
          * @param [in] hours:   Количество часов.
          * @param [in] minutes: Количество минут.
          * @param [in] seconds: Количество секунд.
-		 *
+         *
          * @exception std::out_of_range Если итоговая сумма тиков выходит за пределы MinValue/MaxValue.
          */
         TimeSpan(int hours, int minutes, int seconds);
@@ -48,7 +48,7 @@ namespace other::time
          * @param [in] minutes:      Количество минут.
          * @param [in] seconds:      Количество секунд.
          * @param [in] milliseconds: Количество миллисекунд.
-		 *
+         *
          * @exception std::out_of_range Если итоговая сумма тиков выходит за пределы MinValue/MaxValue.
          */
         TimeSpan(int days, int hours, int minutes, int seconds, int milliseconds = 0);
@@ -134,24 +134,24 @@ namespace other::time
          * - "fff": миллисекунды (000-999).
          * @return Строковое представление текущего значения TimeSpan, определенное параметром format.
          */
-		std::string ToString(const std::string &format) const;
+        std::string ToString(const std::string& format) const;
         /**@brief Возвращает хэш-код для данного экземпляра.
          * @return Уникальное числовое представление объекта.
          */
         size_t GetHashCode() const;
         /**@brief Сравнить два обьекта времени между собой.
-		 *
+         *
          * @param [in] t1 Первый интервал.
          * @param [in] t2 Второй интервал.
-		 *
+         *
          * @return Результат сравнения (-1, 0, 1).
          */
         static int Compare(const TimeSpan& t1, const TimeSpan& t2);
         /**@brief Проверить два обьекта на равенство.
-		 *
+         *
          * @param [in] t1 Первый интервал.
          * @param [in] t2 Второй интервал.
-		 *
+         *
          * @return true, если интервалы равны; иначе false.
          */
         static bool Equals(const TimeSpan& t1, const TimeSpan& t2);
@@ -163,65 +163,64 @@ namespace other::time
         static TimeSpan FromMinutes(double value);
         // Создаёт TimeSpan из указанного количества дробных или целых секунд.
         static TimeSpan FromSeconds(double value);
-		// Создаёт TimeSpan из указанного количества дробных или целых миллисекунд.
+        // Создаёт TimeSpan из указанного количества дробных или целых миллисекунд.
         static TimeSpan FromMilliseconds(double value);
         // Создаёт TimeSpan из указанного количества тактов.
         static TimeSpan FromTicks(int64_t ticks);
-		
+        
         /**@brief Преобразует строковое представление интервала времени в TimeSpan.
-		 *
+         *
          * @param [in] input: Строка, которая указывает преобразуемый интервал времени ([d.hh:mm:ss.fff] 10.13:23:45.500, [hh:mm:ss] 13:23:45).
-		 *
+         *
          * @return Интервал времени, соответствующий параметру input.
          * @exception std::invalid_argument Если формат строки неверен.
          */
         static TimeSpan Parse(const std::string& input);
         /**@brief Преобразует строковое представление интервала времени в TimeSpan и возвращает значение, позволяющее определить успешность преобразования.
-		 *
+         *
          * @param [in]  input:  Строка, которая указывает преобразуемый интервал времени.
          * @param [out] result: После возврата из этого метода содержит объект, представляющий интервал времени, заданный в параметре input.
-		 *
+         *
          * @return true,  если преобразование успешно; иначе false.
          */
         static bool TryParse(const std::string& input, TimeSpan& result);
         /**@brief Преобразует строковое представление интервала времени в TimeSpan, используя указанные формат. 
-		 * Формат строкового представления должен полностью соответствовать заданному формату.
-		 *
+         * Формат строкового представления должен полностью соответствовать заданному формату.
+         *
          * @param [in] input:  Строка, которая указывает преобразуемый интервал времени.
          * @param [in] format: Стандартная или пользовательская строка формата, которая определяет требуемый формат параметра input (например, "hh:mm:ss").
-		 *
+         *
          * @return Интервал времени, соответствующий параметру input, в виде, заданном параметрами format.
          */
         static TimeSpan ParseExact(const std::string& input, const std::string& format);
         /**@brief Преобразует строковое представление интервала времени в TimeSpan, используя список допустимых форматов.
-		 *
+         *
          * @param [in] input:   Строка с интервалом времени.
          * @param [in] formats: Вектор строк-форматов (напр., {"hh:mm:ss", "d.hh:mm", "h:m:s"}).
-		 *
+         *
          * @return TimeSpan Объект, полученный из первого подошедшего формата.
          * @exception std::invalid_argument Если строка не подошла ни к одному из форматов.
          */
         static TimeSpan ParseExact(const std::string& input, const std::vector<std::string>& formats);
         /**@brief Преобразует строковое представление интервала времени в TimeSpan, строго по заданному формату.
-		 *
+         *
          * @param [in]  input:  Входная строка.
          * @param [in]  format: Строка формата (например, "hh:mm:ss").
          * @param [out] result: Ссылка на объект для записи результата.
-		 *
+         *
          * @return true, если преобразование прошло успешно; иначе false.
          */
         static bool TryParseExact(const std::string& input, const std::string& format, TimeSpan& result);
         /**@brief Преобразует строковое представление интервала времени в TimeSpan, перебирая список форматов.
-		 *
+         *
          * @param [in]  input:   Входная строка.
          * @param [in]  formats: Вектор строк-форматов.
          * @param [out] result:  Ссылка на объект, в который будет записан результат при успехе.
-		 *
+         *
          * @return true, если строка подошла хотя бы к одному формату; иначе false.
-         * @exception std::invalid_argument Если строка не подошла ни к одному из форматов.
          */
-        static bool TryParseExact(const std::string& input, const std::vector<std::string> &formats, TimeSpan& result);
-		
+        static bool TryParseExact(const std::string& input, const std::vector<std::string>& formats, TimeSpan& result);
+        
         //////////////////////////////////////////////////////////////////////
         ///                     Операторы сравнения                        ///
         //////////////////////////////////////////////////////////////////////
@@ -245,10 +244,10 @@ namespace other::time
         TimeSpan& operator=(TimeSpan&& value) noexcept;
         
         /**@brief Записывает текстовое представление интервала в поток вывода.
-		 *
+         *
          * @param os Ссылка на поток вывода (например, std::cout или std::ofstream).
          * @param ts Объект TimeSpan для вывода.
-		 *
+         *
          * @return Ссылка на поток вывода для построения цепочек (chaining).
          */
         friend std::ostream& operator<<(std::ostream& os, const TimeSpan& ts);
@@ -256,11 +255,11 @@ namespace other::time
          *
          * @param is Ссылка на поток ввода (например, std::cin).
          * @param ts Объект для записи результата.
-		 *
+         *
          * @return Ссылка на поток ввода.
          */
         friend std::istream& operator>>(std::istream& is, TimeSpan& ts);
     };
 }
 
-#endif
+#endif // LIBOTHER_TIMESPAN_H

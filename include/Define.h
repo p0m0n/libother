@@ -22,6 +22,7 @@
 #include <vector>      // Динамический массив с автоматическим изменением размера (std::vector)
 #include <map>         // Упорядоченный ассоциативный массив "ключ-значение" (std::map)
 #include <queue>       // Контейнеры-адаптеры: очередь (std::queue) и очередь с приоритетом (std::priority_queue)
+#include <memory>      // Умные указатели (std::shared_ptr, std::unique_ptr, std::make_shared)
 
 // ==========================================
 // 4. СТРОКИ И РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ
@@ -29,13 +30,16 @@
 #include <string>      // Динамические C++ строки с управлением памятью (std::string, std::wstring)
 #include <string_view> // Легковесная ссылка на строку без копирования данных (std::string_view, C++17)
 #include <cstring>     // Низкоуровневые C-функции для байтовых массивов и C-строк (memcpy, memset, strlen)
+#include <cctype>      // Функции классификации символов (std::isdigit, std::isspace)
 #include <regex>       // Шаблоны регулярных выражений для поиска и валидации текста (std::regex)
 
 // ==========================================
 // 5. АЛГОРИТМЫ И МАТЕМАТИКА
 // ==========================================
-#include <algorithm>   // Стандартные алгоритмы сортировки, поиска и трансформации (std::sort, std::find)
+#include <algorithm>   // Стандартные алгоритмы сортировки, поиска и трансформации (std::sort, std::find, std::clamp)
 #include <numeric>     // Математические и числовые алгоритмы (std::accumulate, std::gcd, std::iota)
+#include <cmath>       // Математические функции (std::isnan, std::isfinite)
+#include <limits>      // Числовые пределы типов (std::numeric_limits)
 #include <bit>         // Битовые операции и конвертация типов (std::bit_cast, подсчет установленных бит, C++20)
 
 // ==========================================
@@ -75,7 +79,7 @@
         #define WIN32_LEAN_AND_MEAN
     #endif
     
-	#include <winsock2.h>
+    #include <winsock2.h>
     #include <ws2tcpip.h>
     #include <windows.h>
 
@@ -86,14 +90,14 @@
     #ifdef max
         #undef max
     #endif
-	
-	#ifdef MIN
+
+    #ifdef MIN
         #undef MIN
     #endif
     #ifdef MAX
         #undef MAX
     #endif
-	
+
     #ifdef ARRAYSIZE
         #undef ARRAYSIZE
     #endif
@@ -101,7 +105,8 @@
         #undef _ARRAYSIZE
     #endif
 
-    // Перенаправление на безопасные (secure) версии функций ввода/вывода MSVC
+    // Перенаправление на безопасные (secure) версии функций ввода/вывода MSVC.
+    // Внимание: для спецификаторов %s/%c/%[ у sscanf_s отличается сигнатура (требуется размер буфера).
     #define m_sscanf sscanf_s
     #define m_printf printf_s
 #else

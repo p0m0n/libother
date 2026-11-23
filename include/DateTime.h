@@ -1,5 +1,5 @@
-#ifndef _OTHER_DATETIME_H_
-#define _OTHER_DATETIME_H_
+#ifndef LIBOTHER_DATETIME_H
+#define LIBOTHER_DATETIME_H
 
 #include "Define.h"
 #include "TimeSpan.h"
@@ -65,7 +65,7 @@ namespace other::time
     public:
         static const DateTime Zero;        // Нулевое значение {NULL}.
         static const DateTime MinValue;    // Минимально возможное значение DateTime, соответствует дате 00:00:00.0000000 UTC, 1 января 0001 года.
-        static const DateTime MaxValue;    // Максимально возможное значение DateTime, соответствует дате 23:59 : 59.9999999 UTC, 31 декабря 9999 года.
+        static const DateTime MaxValue;    // Максимально возможное значение DateTime, соответствует дате 23:59:59.9999999 UTC, 31 декабря 9999 года.
         /**
          * @brief Инициализирует новый экземпляр DateTime заданным количеством тиков и типом времени.
          * Каждый тик представляет собой интервал времени, равный 100 наносекундам.
@@ -73,7 +73,7 @@ namespace other::time
          *
          * @param [in] ticks: Количество тиков (от MinValue до MaxValue).
          * @param [in] kind:  Задает тип времени (локальное, UTC или неопределенное).
-		 *
+         *
          * @exception std::out_of_range Выбрасывается, если значение ticks меньше MinValue или больше MaxValue.
          */
         explicit DateTime(int64_t ticks = 0, const DateTimeKind& kind = DateTimeKind::Unspecified);
@@ -84,7 +84,7 @@ namespace other::time
          * @param [in] year:  Год (от 1 до 9999).
          * @param [in] month: Месяц (от 1 до 12).
          * @param [in] day:   День (от 1 до количества дней в месяце).
-		 *
+         *
          * @exception std::out_of_range Выбрасывается, если параметры года, месяца или дня находятся вне допустимого диапазона.
          */
         DateTime(int year, int month, int day);
@@ -101,8 +101,8 @@ namespace other::time
          * @param [in] second:      Секунды (от 0 до 59).
          * @param [in] millisecond: Миллисекунды (от 0 до 999).
          * @param [in] kind:        Тип времени (Utc, Local или Unspecified).
-		 *
-         * @exception std::out_of_range Выбрасывается, в следующих случаях, если один из параметров (year, month, hour, minute, second, millisecond) вне допустимого диапазона.
+         *
+         * @exception std::out_of_range Выбрасывается, если один из параметров (year, month, day, hour, minute, second, millisecond) вне допустимого диапазона.
          */
         DateTime(int year, int month, int day, int hour, int minute, int second, int millisecond = 0, const DateTimeKind& kind = DateTimeKind::Unspecified);
         /**
@@ -119,7 +119,7 @@ namespace other::time
         DateTime(DateTime&& value) noexcept;
         ~DateTime() = default;
         /**
-         * @brief Возвращает объект DateTime, установленный на текущию дату и время данного компьютера (Local Time).
+         * @brief Возвращает объект DateTime, установленный на текущую дату и время данного компьютера (Local Time).
          * Метод получает текущее универсальное время (UTC) и преобразует его в местное время в соответствии с настройками часового пояса и правилами перехода на летнее время текущей системы.
          *
          * @return DateTime Объект, значением которого являются текущие местные дата и время.
@@ -146,7 +146,7 @@ namespace other::time
          */
         int64_t Ticks() const;
         /**
-         * @brief Получает значение, указывающее, представляет ли данное значение местное время, время UTC или ни то, ни другое(Unspecified).
+         * @brief Получает значение, указывающее, представляет ли данное значение местное время, время UTC или ни то, ни другое (Unspecified).
          *
          * @return Одно из значений DateTimeKind, определяющее интерпретацию текущего времени.
          */
@@ -216,7 +216,7 @@ namespace other::time
          * Обнуляет временную составляющую (часы, минуты, секунды), сохраняя количество полных дней.
          *
          * @return Объект DateTime с тем же значением Kind и временем, установленным на полночь.
-         * @exception Только те что определенны в первом конструкторе.
+         * @exception Только те что определены в первом конструкторе.
          */
         DateTime Date() const;
         /**
@@ -224,11 +224,11 @@ namespace other::time
          * Извлекает интервал времени, прошедший с начала текущего дня.
          *
          * @return Объект TimeSpan, представляющий дробную часть суток текущего экземпляра.
-         * @exception Только те что определенны в конструкторе TimeSpan.
+         * @exception Только те что определены в конструкторе TimeSpan.
          */
         TimeSpan TimeOfDay() const;
-        
-		/**
+
+        /**
          * @brief Возвращает новый объект DateTime, который является результатом прибавления значения заданного TimeSpan к значению данного экземпляра.
          *
          * @param [in] value: Объект TimeSpan, содержащий добавляемый интервал (может быть отрицательным).
@@ -310,7 +310,7 @@ namespace other::time
          * @param [in] years: Количество лет (от -10000 до 10000) или std::out_of_range.
          * 
          * @return Новый объект DateTime.
-         * @exception Только те что определенны в конструкторе.
+         * @exception Только те что определены в конструкторе.
          */
         DateTime AddYears(int years) const;
         /**
@@ -319,7 +319,7 @@ namespace other::time
          * @param [in] value: Интервал TimeSpan.
          * 
          * @return Новый объект DateTime.
-         * @exception Только те что определенны в конструкторе.
+         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
          */
         DateTime Subtract(const TimeSpan& value) const;
         /**
@@ -328,7 +328,7 @@ namespace other::time
          * @param [in] value: Дата, которую необходимо вычесть.
          * 
          * @return Объект TimeSpan, представляющий разницу во времени.
-         * @exception Только те что определенны в конструкторе.
+         * @exception Только те что определены в конструкторе TimeSpan.
          */
         TimeSpan Subtract(const DateTime& value) const;
         /**
@@ -337,7 +337,7 @@ namespace other::time
          * вычисляется смещение часового пояса системы и флаг летнего времени (DST).
          *
          * @return Объект DateTime с типом Local, значение которого соответствует местному времени.
-         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
+         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue, либо преобразование недоступно для данной даты.
          */
         DateTime ToLocalTime() const;
         /**
@@ -345,7 +345,7 @@ namespace other::time
          * Выполняет операцию, обратную ToLocalTime, корректируя тики на смещение часового пояса.
          *
          * @return Объект DateTime с типом Utc.
-         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
+         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue, либо преобразование недоступно для данной даты.
          */
         DateTime ToUniversalTime() const;
         /**
@@ -410,14 +410,14 @@ namespace other::time
          */
         static bool Equals(const DateTime& t1, const DateTime& t2);
         /**
-          * @brief Создает новый объект DateTime, имеющий то же количество тиков, что и указанный DateTime, но с заданным значением DateTimeKind.
-          *
-          * @param [in] value: Исходная дата.
-          * @param [in] kind:  Новый тип времени (Local, Utc или Unspecified).
-          * 
-          * @return Новый экземпляр DateTime с тем же временем, но другим флагом типа.
-          * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
-          */
+         * @brief Создает новый объект DateTime, имеющий то же количество тиков, что и указанный DateTime, но с заданным значением DateTimeKind.
+         *
+         * @param [in] value: Исходная дата.
+         * @param [in] kind:  Новый тип времени (Local, Utc или Unspecified).
+         * 
+         * @return Новый экземпляр DateTime с тем же временем, но другим флагом типа.
+         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
+         */
         static DateTime SpecifyKind(const DateTime& value, const DateTimeKind& kind);
         /**
          * @brief Преобразует объект DateTime в строковое представление.
@@ -446,14 +446,12 @@ namespace other::time
          * Вы можете комбинировать следующие токены для создания своего формата:
          * - `yyyy` - год (4 цифры), `yy` - год (2 цифры)
          * - `MMMM` - полное имя месяца, `MMM` - краткое, `MM` - число (01-12)
-         * - `dddd` - день недели, `dd` - день месяца (01-31)
+         * - `dddd` - полное имя дня недели, `ddd` - краткое, `dd` - день месяца (01-31)
          * - `HH` - часы (00-23), `mm` - минуты (00-59), `ss` - секунды (00-59)
          * 
          * @param [in] format: Строка формата или одиночный спецификатор.
          * 
          * @return std::string Сформированная строка даты/времени.
-         * 
-         * При использовании технических спецификаторов ('s', 'u', 'r') локальные настройки игнорируются.
          */
         std::string ToString(const std::string& format = "G") const;
         // Возвращает массив форматов, поддерживаемых этим классом.
@@ -487,7 +485,7 @@ namespace other::time
         /**
          * @brief Преобразует строковое представление даты и времени в эквивалент DateTime.
          *
-         * @param [in] input: Строка для анализа (формат DD.MM.YYYY HH:mm:ss).
+         * @param [in] input: Строка для анализа (формат DD.MM.YYYY HH:mm:ss и др.).
          * 
          * @return Объект DateTime.
          * @exception std::invalid_argument Если строка не является допустимым представлением даты.
@@ -509,9 +507,10 @@ namespace other::time
          * @param [in] format: Шаблон формата (например, "yyyy-MM-dd").
          * 
          * @return Объект DateTime.
+         * @exception std::invalid_argument Если строка не соответствует формату.
          */
         static DateTime ParseExact(const std::string& input, const std::string& format);
-		static DateTime ParseExact(const std::string& input, const std::vector<std::string>& formats);
+        static DateTime ParseExact(const std::string& input, const std::vector<std::string>& formats);
         /**
          * @brief Преобразует строку в DateTime, используя строго заданный шаблон формата.
          * Использует системные вызовы POSIX (strptime) на Unix и стандартные потоки на Windows.
@@ -522,37 +521,37 @@ namespace other::time
          * @return true, если парсинг прошел успешно; иначе false.
          */
         static bool TryParseExact(const std::string& input, const std::string& format, DateTime& result);
-		static bool TryParseExact(const std::string& input, const std::vector<std::string> &formats, DateTime& result);
+        static bool TryParseExact(const std::string& input, const std::vector<std::string>& formats, DateTime& result);
         /**
          * Преобразует текущий экземпляр DateTime в формат Unix Time (секунд).
          * Unix-время — это количество секунд, прошедших с 1 января 1970 года 00:00:00 UTC.
-		 *
+         *
          * @return Количество секунд с начала эпохи Unix.
          */
         int64_t ToUnixTimeSeconds() const;
-		/**
+        /**
          * Преобразует текущий экземпляр DateTime в формат Unix Time (миллисекунды).
          * Unix-время — это количество миллисекунд, прошедших с 1 января 1970 года 00:00:00 UTC.
-		 *
+         *
          * @return Количество миллисекунд с начала эпохи Unix.
          */
-		int64_t ToUnixTimeMilliseconds() const;
+        int64_t ToUnixTimeMilliseconds() const;
         /**
          * Создает объект DateTime из количества секунд Unix Time.
-		 *
+         *
          * @param [in] seconds: Количество секунд, прошедших с 1 января 1970 года 00:00:00 UTC.
-		 *
+         *
          * @return Объект DateTime, представляющий указанный момент времени в формате UTC.
          */
         static DateTime FromUnixTimeSeconds(int64_t seconds);
-		/**
+        /**
          * Создает объект DateTime из количества миллисекунд Unix Time.
-		 *
+         *
          * @param [in] milliseconds: Количество миллисекунд, прошедших с 1 января 1970 года 00:00:00 UTC.
-		 *
+         *
          * @return Объект DateTime, представляющий указанный момент времени в формате UTC.
          */
-		static DateTime FromUnixTimeMilliseconds(int64_t milliseconds);
+        static DateTime FromUnixTimeMilliseconds(int64_t milliseconds);
         /**
          * @brief Сериализует текущий объект в 64-битное целое число для компактного хранения или передачи.
          * Использует битовую маску: 2 верхних бита хранят DateTimeKind, остальные 62 бита — количество тиков.
@@ -566,7 +565,7 @@ namespace other::time
          * @param [in] dateData: Данные, полученные методом ToBinary.
          * 
          * @return Восстановленный экземпляр DateTime с сохраненным Kind и Ticks.
-         * @exception std::out_of_range Если результирующее значение меньше MinValue или больше MaxValue.
+         * @exception std::out_of_range Если результирующее значение меньше MinValue, больше MaxValue или содержит недопустимый Kind.
          */
         static DateTime FromBinary(int64_t dateData);
         /**
@@ -579,12 +578,7 @@ namespace other::time
         int64_t ToFileTime() const;
         /**
          * @brief Преобразует системное время Windows (FILETIME) в объект DateTime, выраженный в местном (локальном) времени.
-		 *
-         * Логика работы метода:
-         * 1. Входное значение fileTime (тики с 1601 года) переводится в системные тики (с 0001 года).
-         * 2. Создается временный объект в формате UTC.
-         * 3. Выполняется автоматическая конвертация из UTC в локальный часовой пояс системы.
-         * 
+         *
          * @param [in] fileTime: Количество 100-наносекундных интервалов с 00:00:00 1 января 1601 года (UTC).
          * 
          * @return Объект DateTime с Kind = Local, представляющий местное время.
@@ -609,8 +603,6 @@ namespace other::time
          * 
          * @return Объект DateTime в формате UTC.
          * @exception std::out_of_range Если fileTime < 0 или результат превышает MaxValue.
-         * Разница между началом эры DateTime (0001г) и эры Windows (1601г)
-         * составляет ровно 504,911,232,000,000,000 тактов.
          */
         static DateTime FromFileTimeUtc(int64_t fileTime);
         /**
@@ -621,10 +613,6 @@ namespace other::time
          * 
          * @return Число double в формате OLE.
          * @exception std::overflow_error Если дата раньше 1 января 100 года (минимум для OLE).
-         * 
-         * Для дат до 30.12.1899 (отрицательные значения) используется особая логика:
-         * дробная часть времени всегда считается "вперед" от начала суток, что требует
-         * математической коррекции при вычислении.
          */
         double ToOADate() const;
         /**
@@ -634,7 +622,7 @@ namespace other::time
          * @param [in] value Число double (OLE Date). 0.0 соответствует 30 декабря 1899 года.
          * 
          * @return Объект DateTime с типом Unspecified.
-         * @exception std::out_of_range Если значение выходит за пределы (0100г - 9999г).
+         * @exception std::out_of_range Если значение выходит за пределы (0100г - 9999г) или является NaN.
          */
         static DateTime FromOADate(double value);
 
@@ -664,15 +652,15 @@ namespace other::time
         DateTime& operator=(const DateTime& value);
         DateTime& operator=(DateTime&& value) noexcept;
 
-        /**@brief Записывает текстовое представление интервала в поток вывода.
+        /**@brief Записывает текстовое представление даты/времени в поток вывода.
          *
          * @param os Ссылка на поток вывода (например, std::cout или std::ofstream).
-         * @param ts Объект TimeSpan для вывода.
+         * @param ts Объект DateTime для вывода.
          *
          * @return Ссылка на поток вывода для построения цепочек (chaining).
          */
         friend std::ostream& operator<<(std::ostream& os, const DateTime& ts);
-        /**@brief Читает текстовое представление интервала из потока ввода.
+        /**@brief Читает текстовое представление даты/времени из потока ввода.
          *
          * @param is Ссылка на поток ввода (например, std::cin).
          * @param ts Объект для записи результата.
@@ -683,4 +671,4 @@ namespace other::time
     };
 }
 
-#endif
+#endif // LIBOTHER_DATETIME_H

@@ -23,12 +23,17 @@
 #define LIBOTHER_COMPILER_GNU                1
 // Числовой идентификатор для компилятора Intel.
 #define LIBOTHER_COMPILER_INTEL              2
+// Числовой идентификатор для компилятора Clang.
+#define LIBOTHER_COMPILER_CLANG              3
 
 // Определяем используемый компилятор.
 #ifdef _MSC_VER
 #  define LIBOTHER_COMPILER          LIBOTHER_COMPILER_MICROSOFT
 #elif defined( __INTEL_COMPILER )
 #  define LIBOTHER_COMPILER          LIBOTHER_COMPILER_INTEL
+#elif defined( __clang__ )
+#  define LIBOTHER_COMPILER          LIBOTHER_COMPILER_CLANG
+#  define CLANG_VERSION (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
 #elif defined( __GNUC__ )
 #  define LIBOTHER_COMPILER          LIBOTHER_COMPILER_GNU
 // Числовая версия GCC в формате major*10000 + minor*100 + patch.
@@ -53,4 +58,4 @@
 #   endif
 #endif
 
-#endif
+#endif // LIBOTHER_COMPILERDEFS_H

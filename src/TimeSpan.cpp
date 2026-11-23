@@ -3,6 +3,13 @@
 
 namespace other::time
 {
+    // Безопасное преобразование дробного значения в тики с проверкой NaN/Inf и переполнения.
+    static TimeSpan FromDoubleInterval(double value, int64_t scaleTicks);
+    // Строгий разбор неотрицательного целого числа из строки.
+    static bool ParseStrictNonNegativeInt64(const std::string& str, int64_t& out);
+    // Разбор дробной части секунд (от 1 до 7 цифр) в тики (100 нс).
+    static bool ParseFractionalSecondsToTicks(const std::string& fracStr, int64_t& outTicks);
+
     // Инициализация нулевого значения (0 тиков).
     const TimeSpan TimeSpan::Zero(0LL);
     // Инициализация максимального значения.
@@ -13,19 +20,11 @@ namespace other::time
     // Основной конструктор по тактам.
     TimeSpan::TimeSpan(int64_t ticks) : _ticks(ticks)
     {
-        // Проверка границ допустимого диапазона.
-        if (ticks < MinTicksTimeSpan || ticks > MaxTicksTimeSpan)
-        {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: TimeSpan, ticks are out of range." << std::endl;
-#endif
-            throw;
-        }
     }
 
     // Делегирующий конструктор (Ч:М:С).
-    TimeSpan::TimeSpan(int hours, int minutes, int seconds) 
-        : TimeSpan(0, hours, minutes, seconds, 0)   // Перенаправляем вызов в полный конструктор.
+    TimeSpan::TimeSpan(int hours, int minutes, int seconds)
+        : TimeSpan(0, hours, minutes, seconds, 0)
     {
     }
 
@@ -33,20 +32,7 @@ namespace other::time
     TimeSpan::TimeSpan(int days, int hours, int minutes, int seconds, int milliseconds)
     {
         int64_t ticks = 0;
-        
-        // Используем макрос/функцию для сложения компонентов.
         ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
-        
-        // Проверка границ допустимого диапазона.
-        if (ticks < MinTicksTimeSpan || ticks > MaxTicksTimeSpan)
-        {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: TimeSpan, ticks are out of range." << std::endl;
-#endif
-            throw;
-        }
-
-        // Сохраняем результат.
         _ticks = ticks;
     }
 
@@ -58,39 +44,41 @@ namespace other::time
     // Конструктор перемещения.
     TimeSpan::TimeSpan(TimeSpan&& value) noexcept : _ticks(value._ticks)
     {
-        value._ticks = 0; // Сбрасываем старый объект.
+        value._ticks = 0;
     }
 
     int64_t TimeSpan::Ticks() const    { return _ticks; }
-    int TimeSpan::Days() const         { return (int)(_ticks / TICKS_PER_DAY); }
-    int TimeSpan::Hours() const        { return (int)((_ticks / TICKS_PER_HOUR) % 24); }
-    int TimeSpan::Minutes() const      { return (int)((_ticks / TICKS_PER_MINUTE) % 60); }
-    int TimeSpan::Seconds() const      { return (int)((_ticks / TICKS_PER_SECOND) % 60); }
-    int TimeSpan::Milliseconds() const { return (int)((_ticks / TICKS_PER_MILLISECOND) % 1000); }
+    int TimeSpan::Days() const         { return static_cast<int>(_ticks / TICKS_PER_DAY); }
+    int TimeSpan::Hours() const        { return static_cast<int>((_ticks / TICKS_PER_HOUR) % 24); }
+    int TimeSpan::Minutes() const      { return static_cast<int>((_ticks / TICKS_PER_MINUTE) % 60); }
+    int TimeSpan::Seconds() const      { return static_cast<int>((_ticks / TICKS_PER_SECOND) % 60); }
+    int TimeSpan::Milliseconds() const { return static_cast<int>((_ticks / TICKS_PER_MILLISECOND) % 1000); }
 
     double TimeSpan::TotalDays() const         { return static_cast<double>(_ticks) / TICKS_PER_DAY; }
-    double TimeSpan::TotalHours() const        { return static_cast<double>(_ticks) / TICKS_PER_HOUR;}
-    double TimeSpan::TotalMinutes() const      { return static_cast<double>(_ticks) / TICKS_PER_MINUTE;}
+    double TimeSpan::TotalHours() const        { return static_cast<double>(_ticks) / TICKS_PER_HOUR; }
+    double TimeSpan::TotalMinutes() const      { return static_cast<double>(_ticks) / TICKS_PER_MINUTE; }
     double TimeSpan::TotalSeconds() const      { return static_cast<double>(_ticks) / TICKS_PER_SECOND; }
     double TimeSpan::TotalMilliseconds() const { return static_cast<double>(_ticks) / TICKS_PER_MILLISECOND; }
 
     // Создает новый TimeSpan путем сложения тиков.
     TimeSpan TimeSpan::Add(const TimeSpan& value) const
     {
-        return TimeSpan(_ticks + value._ticks);
+        return TimeSpan(CheckedAddInt64(_ticks, value._ticks, "TimeSpan: addition overflow."));
     }
 
     // Создает новый TimeSpan путем вычитания тиков.
     TimeSpan TimeSpan::Subtract(const TimeSpan& value) const
     {
-        return TimeSpan(_ticks - value._ticks);
+        return TimeSpan(CheckedSubInt64(_ticks, value._ticks, "TimeSpan: subtraction overflow."));
     }
 
     // Возвращает абсолютное значение.
     TimeSpan TimeSpan::Duration() const
     {
-        // Если тики положительные - возвращаем как есть, иначе инвертируем.
-        // Осторожно: если _ticks == MinValue, здесь может быть переполнение, но конструктор это отловит.
+        if (_ticks == MinTicksTimeSpan)
+        {
+            throw std::out_of_range("TimeSpan: Duration overflow on MinValue.");
+        }
         return TimeSpan(_ticks >= 0 ? _ticks : -_ticks);
     }
 
@@ -99,12 +87,8 @@ namespace other::time
     {
         if (_ticks == MinTicksTimeSpan)
         {
-#if LIBOTHER_DEBUG
-            std::cout << "ERROR: TimeSpan, overflow negate." << std::endl;
-#endif
-            throw;
+            throw std::out_of_range("TimeSpan: Negate overflow on MinValue.");
         }
-
         return TimeSpan(-_ticks);
     }
 
@@ -120,83 +104,96 @@ namespace other::time
     {
         return (_ticks == value._ticks);
     }
-	
-    // Преобразование в строку. Формат: [d.]hh:mm:ss[.fff]
+
+    // Преобразование в строку. Формат: [-][d.]hh:mm:ss[.fff]
     std::string TimeSpan::ToString() const
     {
-        std::stringstream ss;
+        std::ostringstream ss;
 
-        // Если значение отрицательное, вручную добавляем знак.
         if (_ticks < 0)
             ss << "-";
 
-        // Работаем с абсолютными значениями компонентов.
-        int days = std::abs(Days());
-        // Дни выводятся только если они есть (не ноль).
+        const uint64_t absTicks = (_ticks < 0)
+            ? (0ULL - static_cast<uint64_t>(_ticks))
+            : static_cast<uint64_t>(_ticks);
+
+        const uint64_t days         = absTicks / static_cast<uint64_t>(TICKS_PER_DAY);
+        const uint64_t hours        = (absTicks / static_cast<uint64_t>(TICKS_PER_HOUR)) % 24ULL;
+        const uint64_t minutes      = (absTicks / static_cast<uint64_t>(TICKS_PER_MINUTE)) % 60ULL;
+        const uint64_t seconds      = (absTicks / static_cast<uint64_t>(TICKS_PER_SECOND)) % 60ULL;
+        const uint64_t milliseconds = (absTicks / static_cast<uint64_t>(TICKS_PER_MILLISECOND)) % 1000ULL;
+
         if (days > 0)
             ss << days << ".";
 
-        // Вывод времени с ведущими нулями (напр. 05:01:09).
-        ss << std::setfill('0') << std::setw(2) << std::abs(Hours()) << ":"
-            << std::setfill('0') << std::setw(2) << std::abs(Minutes()) << ":"
-            << std::setfill('0') << std::setw(2) << std::abs(Seconds());
+        ss << std::setfill('0')
+           << std::setw(2) << hours << ":"
+           << std::setw(2) << minutes << ":"
+           << std::setw(2) << seconds;
 
-        // Выводим миллисекунды только если они есть.
-        int milliseconds = std::abs(Milliseconds());
         if (milliseconds > 0)
-            ss << "." << milliseconds;
+            ss << "." << std::setw(3) << milliseconds;
 
         return ss.str();
     }
-	
+
     std::string TimeSpan::ToString(const std::string& format) const
     {
-        std::stringstream ss;
+        std::ostringstream ss;
 
-        // Обработка знака
-        int64_t ticks = _ticks;
-        if (_ticks < 0) 
-        {
+        if (_ticks < 0)
             ss << "-";
-            // Защита от переполнения при инверсии MinTicks
-            ticks = (_ticks == MinTicksTimeSpan) ? MaxTicksTimeSpan : -_ticks;
-        }
 
-        int64_t day = 0, hour = 0, minute = 0, second = 0, millisecond = 0;
+        const uint64_t absTicks = (_ticks < 0)
+            ? (0ULL - static_cast<uint64_t>(_ticks))
+            : static_cast<uint64_t>(_ticks);
 
-        // Предварительный расчет компонентов (всегда положительные)
-        FROM_TICKS(ticks, day, hour, minute, second, millisecond);
+        const uint64_t day         = absTicks / static_cast<uint64_t>(TICKS_PER_DAY);
+        const uint64_t hour        = (absTicks / static_cast<uint64_t>(TICKS_PER_HOUR)) % 24ULL;
+        const uint64_t minute      = (absTicks / static_cast<uint64_t>(TICKS_PER_MINUTE)) % 60ULL;
+        const uint64_t second      = (absTicks / static_cast<uint64_t>(TICKS_PER_SECOND)) % 60ULL;
+        const uint64_t millisecond = (absTicks / static_cast<uint64_t>(TICKS_PER_MILLISECOND)) % 1000ULL;
 
         for (size_t i = 0; i < format.length(); ++i)
         {
-            // Поиск токенов d, hh, mm, ss, fff
             if (format[i] == 'd')
             {
                 ss << day;
             }
-            else if (format.compare(i, 2, "hh") == 0) 
+            else if (format.compare(i, 2, "hh") == 0)
             {
                 ss << std::setw(2) << std::setfill('0') << hour;
                 i++;
             }
-            else if (format.compare(i, 2, "mm") == 0) 
+            else if (format[i] == 'h')
+            {
+                ss << hour;
+            }
+            else if (format.compare(i, 2, "mm") == 0)
             {
                 ss << std::setw(2) << std::setfill('0') << minute;
                 i++;
             }
-            else if (format.compare(i, 2, "ss") == 0) 
+            else if (format[i] == 'm')
+            {
+                ss << minute;
+            }
+            else if (format.compare(i, 2, "ss") == 0)
             {
                 ss << std::setw(2) << std::setfill('0') << second;
                 i++;
             }
-            else if (format.compare(i, 3, "fff") == 0) 
+            else if (format[i] == 's')
+            {
+                ss << second;
+            }
+            else if (format.compare(i, 3, "fff") == 0)
             {
                 ss << std::setw(3) << std::setfill('0') << millisecond;
                 i += 2;
             }
-            else 
+            else
             {
-                // Любой другой символ (например, ':' или '.') выводим как есть
                 ss << format[i];
             }
         }
@@ -204,55 +201,17 @@ namespace other::time
         return ss.str();
     }
 
-    // Получение хэш-кода для использования в std::map или std::unordered_map.
     size_t TimeSpan::GetHashCode() const
     {
-        // Используем стандартный хэшер для int64_t.
         return std::hash<int64_t>{}(_ticks);
     }
 
-    TimeSpan TimeSpan::FromDays(double value)
-    {
-        double  ticks = value * TICKS_PER_DAY;
-
-        // Добавляем 0.5 для округления к ближайшему целому, а не просто отбрасываем дробь.
-        // Если число положительное, добавляем 0.5, если отрицательное — вычитаем 0.5.
-        int64_t result = static_cast<int64_t>(ticks + (value >= 0 ? 0.5 : -0.5));
-
-        // Возвращаем объект.
-        // Конструктор проверит валидность result.
-        return TimeSpan(result);
-    }
-
-    TimeSpan TimeSpan::FromHours(double value)
-    {
-        double  ticks = value * TICKS_PER_HOUR;
-        int64_t result = static_cast<int64_t>(ticks + (value >= 0 ? 0.5 : -0.5));
-        return TimeSpan(result);
-    }
-
-    TimeSpan TimeSpan::FromMinutes(double value)
-    {
-        double  ticks = value * TICKS_PER_MINUTE;
-        int64_t result = static_cast<int64_t>(ticks + (value >= 0 ? 0.5 : -0.5));
-        return TimeSpan(result);
-    }
-
-    TimeSpan TimeSpan::FromSeconds(double value)
-    {
-        double  ticks = value * TICKS_PER_SECOND;
-        int64_t result = static_cast<int64_t>(ticks + (value >= 0 ? 0.5 : -0.5));
-        return TimeSpan(result);
-    }
-
-    TimeSpan TimeSpan::FromMilliseconds(double value)
-    {
-        double ticks = value * TICKS_PER_MILLISECOND;
-        int64_t result = static_cast<int64_t>(ticks + (value >= 0 ? 0.5 : -0.5));
-        return TimeSpan(result);
-    }
-
-    TimeSpan TimeSpan::FromTicks(int64_t ticks) { return TimeSpan(ticks); }
+    TimeSpan TimeSpan::FromDays(double value)         { return FromDoubleInterval(value, TICKS_PER_DAY); }
+    TimeSpan TimeSpan::FromHours(double value)        { return FromDoubleInterval(value, TICKS_PER_HOUR); }
+    TimeSpan TimeSpan::FromMinutes(double value)      { return FromDoubleInterval(value, TICKS_PER_MINUTE); }
+    TimeSpan TimeSpan::FromSeconds(double value)      { return FromDoubleInterval(value, TICKS_PER_SECOND); }
+    TimeSpan TimeSpan::FromMilliseconds(double value) { return FromDoubleInterval(value, TICKS_PER_MILLISECOND); }
+    TimeSpan TimeSpan::FromTicks(int64_t ticks)       { return TimeSpan(ticks); }
 
     int TimeSpan::Compare(const TimeSpan& t1, const TimeSpan& t2) { return t1.Compare(t2); }
     bool TimeSpan::Equals(const TimeSpan& t1, const TimeSpan& t2) { return t1.Equals(t2); }
@@ -263,101 +222,125 @@ namespace other::time
         if (TimeSpan::TryParse(input, result))
             return result;
 
-        return TimeSpan::Zero;
+        throw std::invalid_argument("TimeSpan::Parse: invalid time span string.");
     }
 
     bool TimeSpan::TryParse(const std::string& input, TimeSpan& result)
     {
-		// Базовая проверка на 0.
         if (input.empty())
             return false;
 
-        size_t inputPos = 0;
+        size_t pos = 0;
         bool negative = false;
 
-        // Проверяем первый символ на наличие знака минус.
-        if (input[inputPos] == '-')
+        if (input[pos] == '-')
         {
             negative = true;
-            inputPos = 1;
+            pos = 1;
+        }
+        else if (input[pos] == '+')
+        {
+            pos = 1;
         }
 
-        int64_t days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0;
+        if (pos >= input.size())
+            return false;
 
         try
         {
-            // Подготовка к разбиению строки на компоненты.
-            std::vector<std::string> parts;
-            std::string current;
+            std::string body = input.substr(pos);
 
-            // Разбиваем строку на части по любым разделителям (:, .)
-            for (size_t i = inputPos; i < input.length(); ++i)
+            // Поддерживаемый формат: [d.]hh:mm[:ss[.fffffff]]
+            const size_t firstColon = body.find(':');
+            if (firstColon == std::string::npos)
             {
-                // Ищем разделители (дней ".", времени ":")
-                if (input[i] == '.' || IsTimeSeparator(input[i]))
+                // Если двоеточий нет — допускаем целое количество дней.
+                int64_t daysOnly = 0;
+                if (!ParseStrictNonNegativeInt64(body, daysOnly))
+                    return false;
+
+                int64_t ticks = CheckedMulPosInt64(daysOnly, TICKS_PER_DAY, "TimeSpan: overflow.");
+                if (negative)
+                    ticks = -ticks;
+
+                result = TimeSpan(ticks);
+                return true;
+            }
+
+            int64_t days = 0;
+            int64_t hours = 0;
+            int64_t minutes = 0;
+            int64_t seconds = 0;
+            int64_t fracTicks = 0;
+
+            // Проверяем наличие дней перед первым двоеточием (d.hh).
+            std::string beforeFirstColon = body.substr(0, firstColon);
+            const size_t dayDot = beforeFirstColon.find('.');
+            if (dayDot != std::string::npos)
+            {
+                if (!ParseStrictNonNegativeInt64(beforeFirstColon.substr(0, dayDot), days) ||
+                    !ParseStrictNonNegativeInt64(beforeFirstColon.substr(dayDot + 1), hours))
                 {
-                    // Если нашли разделитель и буфер не пуст — сохраняем число.
-                    if (!current.empty())
-                    {
-                        parts.push_back(current);
-                        current.clear();
-                    }
+                    return false;
+                }
+            }
+            else
+            {
+                if (!ParseStrictNonNegativeInt64(beforeFirstColon, hours))
+                    return false;
+            }
+
+            // Разбираем остаток после первого двоеточия: mm[:ss[.fffffff]]
+            std::string afterFirstColon = body.substr(firstColon + 1);
+            const size_t secondColon = afterFirstColon.find(':');
+            if (secondColon == std::string::npos)
+            {
+                // Формат [d.]hh:mm
+                if (!ParseStrictNonNegativeInt64(afterFirstColon, minutes))
+                    return false;
+            }
+            else
+            {
+                if (!ParseStrictNonNegativeInt64(afterFirstColon.substr(0, secondColon), minutes))
+                    return false;
+
+                std::string secAndFrac = afterFirstColon.substr(secondColon + 1);
+                if (secAndFrac.find(':') != std::string::npos)
+                    return false;
+
+                const size_t fracDot = secAndFrac.find('.');
+                if (fracDot == std::string::npos)
+                {
+                    if (!ParseStrictNonNegativeInt64(secAndFrac, seconds))
+                        return false;
                 }
                 else
                 {
-                    // Накапливаем цифры.
-                    current += input[i];
+                    if (!ParseStrictNonNegativeInt64(secAndFrac.substr(0, fracDot), seconds) ||
+                        !ParseFractionalSecondsToTicks(secAndFrac.substr(fracDot + 1), fracTicks))
+                    {
+                        return false;
+                    }
                 }
             }
 
-            // Добавляем последнее число после цикла.
-            if (!current.empty())
-                parts.push_back(current);
-
-            // Минимальный формат hh:mm:ss требует 3 части.
-            if (parts.size() < 3)
+            if (minutes >= 60 || seconds >= 60 || (dayDot != std::string::npos && hours >= 24))
                 return false;
 
-            if (parts.size() >= 4) 
-            {
-                days    = std::stoll(parts[0]);
-                hours   = std::stoll(parts[1]);
-                minutes = std::stoll(parts[2]);
-                seconds = std::stoll(parts[3]);
+            int64_t ticks = CheckedComponentsToTicks(days, hours, minutes, seconds, 0);
+            ticks = CheckedAddInt64(ticks, fracTicks, "TimeSpan: overflow.");
 
-                if (parts.size() == 5) 
-                {
-                    // Обработка миллисекунд
-                    std::string msPart = parts[4];
-                    
-                    if (msPart.length() > 3)
-                        msPart = msPart.substr(0, 3);
-
-                    milliseconds = std::stoll(msPart);
-                }
-            }
-            else 
-            {
-                hours   = std::stoll(parts[0]);
-                minutes = std::stoll(parts[1]);
-                seconds = std::stoll(parts[2]);
-            }
-
-            int64_t ticks = 0;
-			// Используем макрос/функцию для сложения компонентов.
-			ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
-
-            // Применяем знак, если он был.
             if (negative)
             {
+                if (ticks == MinTicksTimeSpan)
+                    return false;
                 ticks = -ticks;
             }
-			
-			// Создаем итоговый объект.
+
             result = TimeSpan(ticks);
             return true;
         }
-        catch (...) // Ловим любые исключения.
+        catch (...)
         {
             result = TimeSpan::Zero;
             return false;
@@ -370,161 +353,151 @@ namespace other::time
         if (TryParseExact(input, format, result))
             return result;
 
-        return TimeSpan::Zero;
+        throw std::invalid_argument("TimeSpan::ParseExact: string does not match the specified format.");
     }
 
     TimeSpan TimeSpan::ParseExact(const std::string& input, const std::vector<std::string>& formats)
     {
         TimeSpan result;
+        if (TryParseExact(input, formats, result))
+            return result;
 
-        // Перебираем каждый формат в векторе
-        for (const std::string& format : formats)
-        {
-            // Используем уже реализованный TryParseExact для проверки без исключений
-            if (TryParseExact(input, format, result))
-            {
-                // Как только нашли совпадение — возвращаем результат
-                return result;
-            }
-        }
-
-        return TimeSpan::Zero;
+        throw std::invalid_argument("TimeSpan::ParseExact: string does not match any of the specified formats.");
     }
 
     bool TimeSpan::TryParseExact(const std::string& input, const std::string& format, TimeSpan& result)
     {
-        // Базовая проверка на 0.
-        if (input.empty() || format.empty()) 
+        if (input.empty() || format.empty())
             return false;
 
-        int64_t days = 0, hours = 0, minutes = 0, seconds = 0, milliseconds = 0;
+        int64_t days = 0, hours = 0, minutes = 0, seconds = 0, fracTicks = 0;
         size_t inputPos = 0;
         bool negative = false;
 
-        // Проверяем первый символ на наличие знака минус.
         if (input[inputPos] == '-')
         {
             negative = true;
             inputPos = 1;
         }
 
-        // Лямбда для чтения чисел
-        auto read_number = [&](size_t& pos) -> int64_t
+        auto read_digits = [&](size_t& pos, size_t minDigits, size_t maxDigits, std::string& outDigits) -> bool
         {
             size_t start = pos;
-            while (pos < input.length() && std::isdigit(static_cast<uint8_t>(input[pos])))
+            while (pos < input.length() && (pos - start) < maxDigits &&
+                   std::isdigit(static_cast<unsigned char>(input[pos])))
             {
                 pos++;
             }
-            
-            if (start == pos) 
-                return -1;
-            
-            std::string numStr = input.substr(start, pos - start);
 
-            try 
-            { 
-                return std::stoll(numStr); 
-            }
-            catch (...) 
-            { 
-                return -1; 
-            }
+            size_t count = pos - start;
+            if (count < minDigits)
+                return false;
+
+            outDigits = input.substr(start, count);
+            return true;
+        };
+
+        auto read_number = [&](size_t& pos, size_t minDigits, size_t maxDigits, int64_t& outVal) -> bool
+        {
+            std::string digits;
+            if (!read_digits(pos, minDigits, maxDigits, digits))
+                return false;
+            return ParseStrictNonNegativeInt64(digits, outVal);
         };
 
         try
         {
-            // Цикл по формату
             for (size_t fPos = 0; fPos < format.length(); ++fPos)
             {
-                // Если формат еще требует данных, а строка закончилась
                 if (inputPos >= input.length())
                     return false;
 
                 char fChar = format[fPos];
 
-                // Поиск дней.
                 if (fChar == 'd')
                 {
-                    days = read_number(inputPos);
-                    if (days < 0)
+                    if (!read_number(inputPos, 1, 10, days))
                         return false;
                 }
-                // Поиск часов.
                 else if (fChar == 'h' && format.compare(fPos, 2, "hh") == 0)
                 {
-                    hours = read_number(inputPos);
-                    fPos++; // Пропуск второй 'h'
-                    if (hours < 0)
+                    if (!read_number(inputPos, 2, 2, hours) || hours >= 24)
+                        return false;
+                    fPos++;
+                }
+                else if (fChar == 'h')
+                {
+                    if (!read_number(inputPos, 1, 2, hours) || hours >= 24)
                         return false;
                 }
-                // Поиск минут.
                 else if (fChar == 'm' && format.compare(fPos, 2, "mm") == 0)
                 {
-                    minutes = read_number(inputPos);
+                    if (!read_number(inputPos, 2, 2, minutes) || minutes >= 60)
+                        return false;
                     fPos++;
-                    if (minutes < 0)
+                }
+                else if (fChar == 'm')
+                {
+                    if (!read_number(inputPos, 1, 2, minutes) || minutes >= 60)
                         return false;
                 }
-                // Поиск секунд.
                 else if (fChar == 's' && format.compare(fPos, 2, "ss") == 0)
                 {
-                    seconds = read_number(inputPos);
+                    if (!read_number(inputPos, 2, 2, seconds) || seconds >= 60)
+                        return false;
                     fPos++;
-                    if (seconds < 0)
+                }
+                else if (fChar == 's')
+                {
+                    if (!read_number(inputPos, 1, 2, seconds) || seconds >= 60)
                         return false;
                 }
-                // Поиск миллисекунд.
                 else if (fChar == 'f')
                 {
-                    size_t count = 0;
+                    size_t fCount = 0;
                     while (fPos < format.length() && format[fPos] == 'f')
                     {
-                        count++;
+                        fCount++;
                         fPos++;
                     }
+                    fPos--;
 
-                    fPos--; // Возвращаем указатель на последнюю f
+                    if (fCount > 7)
+                        return false;
 
-                    milliseconds = read_number(inputPos); // true активирует нормализацию до тиков
-                    if (milliseconds < 0)
+                    std::string fracDigits;
+                    if (!read_digits(inputPos, 1, fCount, fracDigits))
+                        return false;
+
+                    if (!ParseFractionalSecondsToTicks(fracDigits, fracTicks))
                         return false;
                 }
                 else
                 {
-                    // Обработка разделителей или фиксированных символов
-                    if (input[inputPos] == '.' || IsTimeSeparator(input[inputPos]) || input[inputPos] == fChar)
-                    {
-                        inputPos++;
-                    }
-                    else
-                    {
-                        // Разделитель не совпал
+                    // Строгое совпадение разделителя / литерального символа.
+                    if (input[inputPos] != fChar)
                         return false;
-                    }
+                    inputPos++;
                 }
             }
 
-            // КРИТИЧЕСКАЯ ПРОВЕРКА: Если после обработки формата в строке остались лишние символы
-            // Это предотвращает ситуацию, когда "12:45:00:99" успешно парсится как "12:45:00"
-            if (inputPos < input.length())
+            if (inputPos != input.length())
                 return false;
-			
-            int64_t ticks = 0;
-			// Используем макрос/функцию для сложения компонентов.
-            ADDED_TICKS(ticks, days, hours, minutes, seconds, milliseconds);
 
-            // Применяем знак, если он был.
+            int64_t ticks = CheckedComponentsToTicks(days, hours, minutes, seconds, 0);
+            ticks = CheckedAddInt64(ticks, fracTicks, "TimeSpan: overflow.");
+
             if (negative)
             {
+                if (ticks == MinTicksTimeSpan)
+                    return false;
                 ticks = -ticks;
             }
 
-            // Создаем итоговый объект.
             result = TimeSpan(ticks);
             return true;
         }
-        catch (...) // Ловим любые исключения.
+        catch (...)
         {
             result = TimeSpan::Zero;
             return false;
@@ -533,23 +506,16 @@ namespace other::time
 
     bool TimeSpan::TryParseExact(const std::string& input, const std::vector<std::string>& formats, TimeSpan& result)
     {
-        // Если входная строка или список форматов пусты, парсинг невозможен
         if (input.empty() || formats.empty())
             return false;
-        
-        // Перебор форматов
+
         for (const std::string& format : formats)
         {
-            // Пропускаем пустые строки форматов внутри вектора
-            if (format.empty()) 
+            if (format.empty())
                 continue;
 
-            // Вызываем атомарный TryParseExact для конкретного формата
             if (TimeSpan::TryParseExact(input, format, result))
-            {
-                // Если успех, переменная result уже содержит значение
                 return true;
-            }
         }
 
         return false;
@@ -564,78 +530,130 @@ namespace other::time
     bool TimeSpan::operator>(const TimeSpan& value)  const { return _ticks > value._ticks; }
     bool TimeSpan::operator<=(const TimeSpan& value) const { return _ticks <= value._ticks; }
     bool TimeSpan::operator>=(const TimeSpan& value) const { return _ticks >= value._ticks; }
+
     //////////////////////////////////////////////////////////////////////
     ///                   Арифметические операторы                     ///
     //////////////////////////////////////////////////////////////////////
-    TimeSpan TimeSpan::operator+(const TimeSpan& value) const { return TimeSpan(_ticks + value._ticks); }
-    TimeSpan TimeSpan::operator-(const TimeSpan& value) const { return TimeSpan(_ticks - value._ticks); }
+    TimeSpan TimeSpan::operator+(const TimeSpan& value) const { return Add(value); }
+    TimeSpan TimeSpan::operator-(const TimeSpan& value) const { return Subtract(value); }
+
     //////////////////////////////////////////////////////////////////////
     ///           Арифметические операторы с присваиванием             ///
     //////////////////////////////////////////////////////////////////////
-    TimeSpan& TimeSpan::operator+=(const TimeSpan& value) 
-    { 
-        if (this != &value)
-        {
-            _ticks += value._ticks;
-        }
+    TimeSpan& TimeSpan::operator+=(const TimeSpan& value)
+    {
+        _ticks = CheckedAddInt64(_ticks, value._ticks, "TimeSpan: addition overflow.");
         return *this;
     }
+
     TimeSpan& TimeSpan::operator-=(const TimeSpan& value)
     {
-        if (this != &value)
-        {
-            _ticks -= value._ticks;
-        }
+        _ticks = CheckedSubInt64(_ticks, value._ticks, "TimeSpan: subtraction overflow.");
         return *this;
     }
+
     TimeSpan& TimeSpan::operator=(const TimeSpan& value)
     {
         if (this != &value)
         {
-            // Копируем значение из временного объекта.
             _ticks = value._ticks;
         }
         return *this;
     }
+
     TimeSpan& TimeSpan::operator=(TimeSpan&& value) noexcept
     {
         if (this != &value)
         {
-            // Копируем значение из временного объекта.
             _ticks = value._ticks;
-
-            // "Сбрасываем" временный объект.
             value._ticks = 0;
         }
         return *this;
     }
-	
+
     std::ostream& operator<<(std::ostream& os, const TimeSpan& ts)
     {
-        // Мы просто передаем строковое представление в поток.
-        // Если ToString() возвращает формат [d.]hh:mm:ss[.fffffff], 
-        // он будет выведен и здесь.
         os << ts.ToString();
-
-        // Обязательно возвращаем поток, чтобы можно было писать:
-        // std::cout << ts1 << " и " << ts2;
         return os;
     }
 
     std::istream& operator>>(std::istream& is, TimeSpan& ts)
     {
         std::string temp;
-        // Считываем строку из потока до первого пробельного символа
         if (is >> temp)
         {
-            // Пытаемся распарсить полученную строку
             if (!TimeSpan::TryParse(temp, ts))
             {
-                // Если формат неверный, выставляем failbit.
-                // Это стандартное поведение для C++ при ошибке ввода.
                 is.setstate(std::ios::failbit);
             }
         }
         return is;
+    }
+	
+	// Безопасное преобразование дробного значения в тики с проверкой NaN/Inf и переполнения.
+    TimeSpan FromDoubleInterval(double value, int64_t scaleTicks)
+    {
+        if (!std::isfinite(value))
+        {
+            throw std::out_of_range("TimeSpan: value must be finite (not NaN or Inf).");
+        }
+
+        const double ticksDouble = value * static_cast<double>(scaleTicks);
+        const double rounded = ticksDouble + (ticksDouble >= 0.0 ? 0.5 : -0.5);
+
+        // Верхняя граница 2^63 непредставима в int64_t (max = 2^63 - 1).
+        constexpr double kMinDouble = -9223372036854775808.0; // -2^63
+        constexpr double kMaxDouble =  9223372036854775808.0; //  2^63 (исключительно)
+
+        if (rounded < kMinDouble || rounded >= kMaxDouble)
+        {
+            throw std::out_of_range("TimeSpan: resulting ticks out of range.");
+        }
+
+        return TimeSpan(static_cast<int64_t>(rounded));
+    }
+
+    // Строгий разбор неотрицательного целого числа из строки.
+    bool ParseStrictNonNegativeInt64(const std::string& str, int64_t& out)
+    {
+        if (str.empty())
+            return false;
+
+        for (char c : str)
+        {
+            if (!std::isdigit(static_cast<unsigned char>(c)))
+                return false;
+        }
+
+        try
+        {
+            size_t idx = 0;
+            out = std::stoll(str, &idx);
+            return idx == str.size() && out >= 0;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    // Разбор дробной части секунд (от 1 до 7 цифр) в тики (100 нс).
+    bool ParseFractionalSecondsToTicks(const std::string& fracStr, int64_t& outTicks)
+    {
+        if (fracStr.empty() || fracStr.size() > 7)
+            return false;
+
+        for (char c : fracStr)
+        {
+            if (!std::isdigit(static_cast<unsigned char>(c)))
+                return false;
+        }
+
+        std::string padded = fracStr;
+        while (padded.size() < 7)
+            padded.push_back('0');
+
+        outTicks = std::stoll(padded);
+        return true;
     }
 }

@@ -3,17 +3,13 @@
 
 
 
-
 #include "SocketDefines.h"
 #include "DateTime.h"
 
 
 
-
 namespace other::net::sockets
 {
-	    using namespace other::time;
-
 		/**
 		 * @brief Высокоуровневая кросс-платформенная RAII-обертка над сетевыми сокетами Winsock (C++).
 		 *
@@ -102,7 +98,6 @@ namespace other::net::sockets
 			Socket();
 			/**
 			 * @brief Конструктор-обертка для существующего системного дескриптора.
-			 * Применяется на стороне сервера (например, при вызове accept()), когда сокет уже создан операционной системой.
 			 * Автоматически запрашивает у системы тип, семейство и протокол сокета.
 			 *
 			 * @param [in] handle: Готовый сырой дескриптор сокета (SOCKET / socket_t).
@@ -328,17 +323,17 @@ namespace other::net::sockets
 			 *
 			 * @param [in] enable: Включить (true) или выключить (false) режим Linger.
 			 * @param [in] seconds: Время ожидания в секундах перед принудительным закрытием сокета.
-			 * @return true при успехе, либо false.
+			 * @return 0 при успехе, либо -1.
 			 */
-			bool SetLingerState(bool enable, int seconds);
+			int SetLingerState(bool enable, int seconds);
 			/**
 			 * @brief Получает текущие параметры Linger сокета.
 			 *
 			 * @param [out] enable: Ссылка для сохранения статуса активности режима.
 			 * @param [out] seconds: Ссылка для сохранения времени ожидания в секундах.
-			 * @return true при успехе, либо false.
+			 * @return 0 при успехе, либо -1.
 			 */
-			bool GetLingerState(bool& enable, int& seconds) const;
+			int GetLingerState(bool& enable, int& seconds) const;
 			/**
 			 * @brief Проверяет состояние оптимизации TCP_NODELAY (отключение алгоритма Нейгла).
 			 * 

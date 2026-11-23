@@ -8,6 +8,8 @@ static other::net::sockets::WSAInitializer _wsa_init_global;
 
 namespace other::net::sockets
 {
+	using namespace other::time;
+	
 	    // Проверяет, поддерживает ли текущая ОС IPv4-сокеты, если возвращает 'true' то подерживаеться.
 		bool Socket::SupportsIPv4()
 		{
@@ -72,23 +74,23 @@ namespace other::net::sockets
 				return;
 			}
 
-			// Получаем тип сокета (например, SOCK_STREAM для TCP или SOCK_DGRAM для UDP) через getsockopt
+			// Получаем тип сокета (например, SOCK_STREAM для TCP или SOCK_DGRAM для UDP).
 			socklen_t optlen = sizeof(_type);
 			if (::getsockopt(handle, SOL_SOCKET, SO_TYPE, reinterpret_cast<char*>(&_type), &optlen) == SOCKET_ERROR)
 			{
-				_type = SOCK_STREAM; // Безопасный фоллбек по умолчанию
+				_type = SOCK_STREAM; // Безопасный фоллбек по умолчанию.
 			}
 
-			// Узнаем точное семейство адресов (AF_INET или AF_INET6) через getsockname
+			// Узнаем точное семейство адресов (AF_INET или AF_INET6).
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr);
 			if (::getsockname(handle, reinterpret_cast<sockaddr*>(&addr), &addrlen) != SOCKET_ERROR)
 			{
-				_family = addr.ss_family; // Динамически определяем актуальное семейство (IPv4 или IPv6)
+				// Динамически определяем актуальное семейство (IPv4 или IPv6).
+				_family = addr.ss_family;
 			}
-			// Если getsockname не удался, _family останется равен переданному в аргументе family
 
-			// Получаем информацию о протоколе кросс-платформенно
+			// Получаем информацию о протоколе.
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			WSAPROTOCOL_INFO protoInfo;
 			int protoLen = sizeof(protoInfo);
@@ -99,7 +101,7 @@ namespace other::net::sockets
 			else
 #endif
 			{
-				// Ручной фоллбек на основе типа сокета для Linux и систем без SO_PROTOCOL_INFO
+				// Ручной фоллбек на основе типа сокета для Linux и систем без SO_PROTOCOL_INFO.
 				if (_type == SOCK_STREAM)
 					_protocol = IPPROTO_TCP;
 				else if (_type == SOCK_DGRAM)
@@ -108,7 +110,7 @@ namespace other::net::sockets
 					_protocol = 0;
 			}
 
-			// Фиксируем переданный системный дескриптор в поле класса
+			// Сохраняем дескриптор сокета.
 			_handle = handle;
 		}
 
@@ -119,7 +121,7 @@ namespace other::net::sockets
 				SetDualMode(true);
 		}
 
-		// Основной конструктор: инициализирует поля и создает новый физический сокет в операционной системе через ::socket(...).
+		// Инициализирует поля и создает новый физический сокет в операционной системе.
 		Socket::Socket(int family, int type, int protocol)
 			: _handle(INVALID_SOCKET)
 			, _family(0)
@@ -152,7 +154,6 @@ namespace other::net::sockets
 				
 				// Получаем локальное время для только что созданного сокета.
 			    _start_t  = other::time::DateTime::Now();
-			    _close_t  = other::time::DateTime::Zero;
 			}
 			else
 			{
@@ -162,22 +163,25 @@ namespace other::net::sockets
 
 		// Конструктор перемещения (Move Constructor).
 		Socket::Socket(Socket&& other) noexcept
-			: _handle(other._handle)
-			, _family(other._family)
-			, _type(other._type)
-			, _protocol(other._protocol)
-			, _blocking(other._blocking)
-			, _start_t(other._start_t)
-			, _close_t(other._close_t)
 		{
-			// Обнуляем дескриптор источника, чтобы его деструктор не вызвал закрытие сокета
-			other._handle    = INVALID_SOCKET;
-			other._family    = 0;
-			other._type      = 0;
-			other._protocol  = 0;
-			other._blocking  = true;
-			other._start_t = other::time::DateTime::Zero;
-			other._close_t = other::time::DateTime::Zero;
+			Dispose();
+
+			_handle   = other._handle;
+			_family   = other._family;
+			_type     = other._type;
+			_protocol = other._protocol;
+			_blocking = other._blocking;
+			_start_t  = other._start_t;
+			_close_t  = other._close_t;
+
+			// Обнуляем дескриптор источника, чтобы его деструктор не вызвал закрытие сокета.
+			other._handle   = INVALID_SOCKET;
+			other._family   = 0;
+			other._type     = 0;
+			other._protocol = 0;
+			other._blocking = true;
+			other._start_t  = other::time::DateTime::Zero;
+			other._close_t  = other::time::DateTime::Zero;
 		}
 
 		// Оператор перемещения (Move Assignment).
@@ -194,7 +198,8 @@ namespace other::net::sockets
 				_blocking = other._blocking;
 				_start_t  = other._start_t;
 				_close_t  = other._close_t;
-
+				
+				// Обнуляем дескриптор источника, чтобы его деструктор не вызвал закрытие сокета.
 				other._handle   = INVALID_SOCKET;
 				other._family   = 0;
 				other._type     = 0;
@@ -232,18 +237,7 @@ namespace other::net::sockets
 
 			if (CLOSE_SOCKET(_handle) == SOCKET_ERROR)
 			{
-				int err = GET_NET_ERROR();
-
-				// Игнорируем ошибку невалидного сокета для обеих платформ.
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				if (err != WSAENOTSOCK)
-#else
-				if (err != EBADF)
-#endif
-				{
-					CheckSocketError(SOCKET_ERROR, "Close socket");
-				}
-
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -292,6 +286,11 @@ namespace other::net::sockets
 				const sockaddr_in6* addr6 = reinterpret_cast<const sockaddr_in6*>(&addr);
 				return ntohs(addr6->sin6_port);
 			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "LocalPort: unknown socket family.");
+				return -1;
+			}
 
 			return -1;
 		}
@@ -319,7 +318,7 @@ namespace other::net::sockets
 				{
 					CheckSocketError(SOCKET_ERROR, "RemotePort: getpeername error.");
 				}
-				return 0;
+				return -1;
 			}
 
 			// Извлекаем порт в зависимости от семейства адресов (IPv4 или IPv6)
@@ -333,8 +332,13 @@ namespace other::net::sockets
 				const sockaddr_in6* addr6 = reinterpret_cast<const sockaddr_in6*>(&peerAddr);
 				return ntohs(addr6->sin6_port);
 			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "RemotePort: unknown socket family.");
+				return -1;
+			}
 
-			return 0;
+			return -1;
 		}
 
 		// Проверяет, привязан ли сокет к какому-либо адресу и порту (Bind выполнен успешно).
@@ -380,6 +384,11 @@ namespace other::net::sockets
 				const sockaddr_in6* addr6 = reinterpret_cast<const sockaddr_in6*>(&addr);
 				return addr6->sin6_port != 0;
 			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "IsBound: unknown socket family.");
+				return false;
+			}
 
 			return true;
 		}
@@ -394,14 +403,14 @@ namespace other::net::sockets
 			// Проверяем корректность длины очереди подключений (backlog)
 			if (backlog < 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "Listen failed: backlog cannot be negative.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return false;
 			}
 
 			// Вызываем системную функцию listen и проверяем результат на ошибку
 			if (::listen(_handle, backlog) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "Listen failed.");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -420,13 +429,13 @@ namespace other::net::sockets
 			// Если принять соединение не удалось, возвращаем пустой невалидный объект Socket
 			if (accepted == INVALID_SOCKET)
 			{
-				CheckSocketError(SOCKET_ERROR, "Accept failed.");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return Socket();
 			}
 
 			// Создаем и возвращаем новый объект Socket, передавая системный дескриптор 
 			// и автоматически определенное семейство (поддерживает и IPv4, и IPv6 клиентов)
-			return Socket(accepted, _family);
+			return Socket(accepted);
 		}
 		
 		// Привязывает сокет к порту на всех доступных интерфейсах (INADDR_ANY / in6addr_any).
@@ -464,6 +473,11 @@ namespace other::net::sockets
 					CheckSocketError(SOCKET_ERROR, "Bind IPv4 failed.");
 					return false;
 				}
+			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "Bind: unknown socket family.");
+				return false;
 			}
 
 			return true;
@@ -516,11 +530,7 @@ namespace other::net::sockets
 
 			if (timeout < -1)
 			{
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				WSASetLastError(WSAEINVAL);
-#else
-				errno = EINVAL;
-#endif
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -562,11 +572,7 @@ namespace other::net::sockets
 
 			if (timeout < -1)
 			{
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				WSASetLastError(WSAEINVAL);
-#else
-				errno = EINVAL;
-#endif
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -660,11 +666,7 @@ namespace other::net::sockets
 			
 			if (size <= 0)
 			{
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				WSASetLastError(WSAEINVAL);
-#else
-				errno = EINVAL;
-#endif
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -685,11 +687,7 @@ namespace other::net::sockets
 
 			if (size <= 0)
 			{
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				WSASetLastError(WSAEINVAL);
-#else
-				errno = EINVAL;
-#endif
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1; 
 			}
 
@@ -744,19 +742,34 @@ namespace other::net::sockets
 		// Отключает дальнейший прием данных через сокет (shutdown SD_RECEIVE).
 		void Socket::DoRecv()
 		{
-			CheckSocketError(::shutdown(_handle, SD_RECEIVE), "shutdown(SD_RECEIVE)");
+			#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+	const int how = SD_RECEIVE;
+#else
+	const int how = SHUT_RD;
+#endif
+	CheckSocketError(::shutdown(_handle, how), "shutdown(recv)");
 		}
 
 		// Отключает дальнейшую отправку данных через сокет (shutdown SD_SEND).
 		void Socket::DoSend()
 		{
-			CheckSocketError(::shutdown(_handle, SD_SEND), "shutdown(SD_SEND)");
+			#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+	const int how = SD_SEND;
+#else
+	const int how = SHUT_WR;
+#endif
+	CheckSocketError(::shutdown(_handle, how), "shutdown(send)");
 		}
 
 		// Полностью отключает и прием, и отправку данных (shutdown SD_BOTH).
 		void Socket::DoBoth()
 		{
-			CheckSocketError(::shutdown(_handle, SD_BOTH), "shutdown(SD_BOTH)");
+			#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+	const int how = SD_BOTH;
+#else
+	const int how = SHUT_RDWR;
+#endif
+	CheckSocketError(::shutdown(_handle, how), "shutdown(both)");
 		}
 		
 		// Проверяет, создан ли сокет (дескриптор не равен INVALID_SOCKET).
@@ -788,30 +801,16 @@ namespace other::net::sockets
 			{
 				int error = GET_NET_ERROR();
 
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-				if (error == WSAEWOULDBLOCK)
+				if (error == SOCK_EWOULDBLOCK || error == SOCK_EPROCLIM)
 				{
 					return true; // Сокет неблокирующий и операция заблокирована — соединение живое
 				}
-				else if (error == WSAECONNRESET || error == WSAECONNABORTED ||
-					     error == WSAENETRESET  || error == WSAENETUNREACH  ||
-					     error == WSAESHUTDOWN  || error == WSAENOTCONN)
+				else if (error == SOCK_ECONNRESET || error == SOCK_ECONNABORTED ||
+					     error == SOCK_ENETRESET  || error == SOCK_ENETUNREACH  ||
+					     error == SOCK_ESHUTDOWN  || error == SOCK_ENOTCONN)
 				{
 					return false; // Соединение разорвано или сброшено удаленной стороной
 				}
-#else
-				// POSIX / Linux аналоги сетевых ошибок
-				if (error == EWOULDBLOCK || error == EAGAIN)
-				{
-					return true;
-				}
-				else if (error == ECONNRESET || error == ECONNABORTED ||
-					     error == ENETRESET  || error == ENETUNREACH  ||
-					     error == ESHUTDOWN  || error == ENOTCONN)
-				{
-					return false;
-				}
-#endif
 				else
 				{
 					return false;
@@ -825,7 +824,7 @@ namespace other::net::sockets
 		int Socket::Available() const
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			u_long available = 0;
@@ -845,7 +844,7 @@ namespace other::net::sockets
 		std::string Socket::LocalAddress(bool includePort) const
 		{
 			if (!IsCreated())
-				return false;
+				return "";
 
 			sockaddr_storage addr = { 0 };
 			socklen_t addrlen = sizeof(addr);
@@ -854,7 +853,6 @@ namespace other::net::sockets
 			if (::getsockname(_handle, reinterpret_cast<sockaddr*>(&addr), &addrlen) == SOCKET_ERROR)
 			{
 				CheckSocketError(SOCKET_ERROR, "LocalAddress: getsockname.");
-				//int error = GET_NET_ERROR();
 				return "";
 			}
 
@@ -1103,10 +1101,10 @@ namespace other::net::sockets
 		}
 
 		// Установка параметров Linger (управление поведением закрытия соединения и ожиданием отправки остатков данных).
-		bool Socket::SetLingerState(bool enable, int seconds)
+		int Socket::SetLingerState(bool enable, int seconds)
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 			// Настраиваем структуру linger для плавного/гарантированного закрытия (graceful close)
 			linger l_opt = { 0 };
@@ -1116,18 +1114,18 @@ namespace other::net::sockets
 			socklen_t optlen = sizeof(l_opt); // Используем socklen_t для консистентности
 			if (::setsockopt(_handle, SOL_SOCKET, SO_LINGER, reinterpret_cast<const char*>(&l_opt), optlen) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "setsockopt(SO_LINGER) failed.");
-				return false;
+				SET_NET_ERROR(GET_NET_ERROR());
+				return -1;
 			}
 
-			return true;
+			return 0;
 		}
 
 		// Получение текущих параметров Linger сокета.
-		bool Socket::GetLingerState(bool& enable, int& seconds) const
+		int Socket::GetLingerState(bool& enable, int& seconds) const
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 			linger l_opt = { 0 };
 			socklen_t optlen = sizeof(l_opt);
@@ -1135,15 +1133,15 @@ namespace other::net::sockets
 			// Запрашиваем состояние SO_LINGER через getsockopt
 			if (::getsockopt(_handle, SOL_SOCKET, SO_LINGER, reinterpret_cast<char*>(&l_opt), &optlen) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "getsockopt(SO_LINGER) failed.");
-				return false;
+				SET_NET_ERROR(GET_NET_ERROR());
+				return -1;
 			}
 
 			// Перекладываем значения в выходные параметры по ссылке
 			enable = (l_opt.l_onoff != 0);
 			seconds = static_cast<int>(l_opt.l_linger);
 
-			return true;
+			return 0;
 		}
 
 		// Создает поверхностную копию параметров текущего сокета (создает новый сокет с теми же семейством, типом и протоколом).
@@ -1216,7 +1214,7 @@ namespace other::net::sockets
 
 			if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "Failed to set Dual Stack (IPV6_V6ONLY)");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1235,8 +1233,7 @@ namespace other::net::sockets
 
 			if (::getsockopt(_handle, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 			{
-				// Исправлено сообщение об ошибке на get
-				CheckSocketError(SOCKET_ERROR, "Failed to get Dual Stack state (IPV6_V6ONLY)");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1262,9 +1259,9 @@ namespace other::net::sockets
 			addrinfo* res = nullptr;
 
 			// Выполняем разрешение сетевого адреса (DNS-запрос или парсинг IP)
-			int error = ::getaddrinfo(host.c_str(), portStr.c_str(), &hints, &res);
-			if (error != 0)
+			if (::getaddrinfo(host.c_str(), portStr.c_str(), &hints, &res) != 0)
 			{
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1311,11 +1308,7 @@ namespace other::net::sockets
 				return false;
 
 			// Обязательный shutdown для остановки потока данных
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-			::shutdown(_handle, SD_BOTH);
-#else
-			::shutdown(_handle, SHUT_RDWR);
-#endif
+			DoBoth();
 
 			// Логика переиспользования
 			if (reuseSocket)
@@ -1369,7 +1362,7 @@ namespace other::net::sockets
 			// Запрашиваем состояние TCP_NODELAY у стека протокола TCP
 			if (::getsockopt(_handle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "getsockopt(TCP_NODELAY).");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1387,7 +1380,7 @@ namespace other::net::sockets
 			int optval = enable ? 1 : 0;
 			if (::setsockopt(_handle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "setsockopt(TCP_NODELAY)");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1402,14 +1395,12 @@ namespace other::net::sockets
 
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
-			int level = 0;
-			int optname = 0;
 
 			if (_family == AF_INET)
 			{
 				if (::getsockopt(_handle, IPPROTO_IP, IP_TTL, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "getsockopt(IP_TTL)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return -1;
 				}
 			}
@@ -1417,7 +1408,7 @@ namespace other::net::sockets
 			{
 				if (::getsockopt(_handle, IPPROTO_IPV6, IPV6_UNICAST_HOPS, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "getsockopt(IPV6_UNICAST_HOPS)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return -1;
 				}
 			}
@@ -1442,7 +1433,7 @@ namespace other::net::sockets
 			{
 				if (::setsockopt(_handle, IPPROTO_IP, IP_TTL, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "setsockopt(IP_TTL)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 			}
@@ -1450,7 +1441,7 @@ namespace other::net::sockets
 			{
 				if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_UNICAST_HOPS, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "setsockopt(IPV6_UNICAST_HOPS)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 			}
@@ -1477,13 +1468,14 @@ namespace other::net::sockets
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 				if (::getsockopt(_handle, IPPROTO_IP, IP_DONTFRAGMENT, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "getsockopt(IP_DONTFRAGMENT)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 #else
 				// В Linux для IPv4 аналогом DF является IP_MTU_DISCOVER
 				if (::getsockopt(_handle, IPPROTO_IP, IP_MTU_DISCOVER, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 				{
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 				// IP_PMTUDISC_WANT означает, что пакеты могут фрагментироваться (DF не установлен)
@@ -1495,13 +1487,14 @@ namespace other::net::sockets
 				// Для IPv6 опция IPV6_DONTFRAG одинаково поддерживается и в Windows, и в Linux (RFC 3542)
 				if (::getsockopt(_handle, IPPROTO_IPV6, IPV6_DONTFRAG, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "getsockopt(IPV6_DONTFRAG)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 			}
 			else
 			{
-				return false; // Неизвестное семейство адресов
+				CheckSocketError(SOCKET_ERROR, "IsDontFragment: unknown socket family.");
+				return false;
 			}
 
 			return (optval != 0);
@@ -1520,7 +1513,7 @@ namespace other::net::sockets
 				int optval = value ? 1 : 0;
 				if (::setsockopt(_handle, IPPROTO_IP, IP_DONTFRAGMENT, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "setsockopt(IP_DONTFRAGMENT)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 #else
@@ -1528,7 +1521,7 @@ namespace other::net::sockets
 				int optval = value ? IP_PMTUDISC_DO : IP_PMTUDISC_WANT;
 				if (::setsockopt(_handle, IPPROTO_IP, IP_MTU_DISCOVER, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "setsockopt(IP_MTU_DISCOVER)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 #endif
@@ -1539,13 +1532,14 @@ namespace other::net::sockets
 				int optval = value ? 1 : 0;
 				if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_DONTFRAG, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 				{
-					CheckSocketError(SOCKET_ERROR, "setsockopt(IPV6_DONTFRAG)");
+					SET_NET_ERROR(GET_NET_ERROR());
 					return false;
 				}
 			}
 			else
 			{
-				return false; // Неизвестное семейство адресов
+				CheckSocketError(SOCKET_ERROR, "SetDontFragment: unknown socket family.");
+				return false;
 			}
 
 			return true;
@@ -1571,10 +1565,16 @@ namespace other::net::sockets
 				// Запрашиваем состояние для IPv6.
 				result = ::getsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<char*>(&optval), &optlen);
 			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "IsMulticastLoopback: unknown socket family.");
+				return false;
+			}
 
 			// Если функция завершилась с ошибкой, возвращаем false по умолчанию.
 			if (result == SOCKET_ERROR)
 			{
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1599,6 +1599,11 @@ namespace other::net::sockets
 			{
 				// Настраиваем loopback для IPv6.
 				return ::setsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<const char*>(&value), sizeof(value)) != SOCKET_ERROR;
+			}
+			else
+			{
+				CheckSocketError(SOCKET_ERROR, "SetMulticastLoopback: unknown socket family.");
+				return false;
 			}
 
 			return false;
@@ -1627,7 +1632,7 @@ namespace other::net::sockets
 			// Если произошла системная ошибка, считаем, что broadcast выключен.
 			if (::getsockopt(_handle, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "getsockopt(SO_BROADCAST)");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1639,17 +1644,14 @@ namespace other::net::sockets
 		bool Socket::SetExclusiveAddressUse(bool exclusive)
 		{
 			if (!IsCreated())
-			{
-				CheckSocketError(SOCKET_ERROR, "SetExclusiveAddressUse: Invalid socket.");
 				return false;
-			}
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
 			// SO_EXCLUSIVEADDRUSE поддерживается только в Windows (Winsock)
 			int optval = exclusive ? 1 : 0;
 			if (::setsockopt(_handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
 			{
-				CheckSocketError(SOCKET_ERROR, "setsockopt(SO_EXCLUSIVEADDRUSE)");
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
 			}
 
@@ -1658,7 +1660,8 @@ namespace other::net::sockets
 #else
 			// В Linux/POSIX логика эксклюзивности достигается иначе (или по умолчанию), 
 			// поэтому здесь просто оставляем пустым или настраиваем REUSEADDR.
-			(void)exclusive;
+			LIBOTHER_UNUSED(exclusive);
+			return false;
 #endif
 		}
 
@@ -1672,8 +1675,11 @@ namespace other::net::sockets
 			int optval = 0;
 			socklen_t optlen = sizeof(optval);
 
-			if (CheckSocketError(::getsockopt(_handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<char*>(&optval), &optlen), "getsockopt(SO_EXCLUSIVEADDRUSE)") == -1)
+			if (::getsockopt(_handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
+			{
+				SET_NET_ERROR(GET_NET_ERROR());
 				return false;
+			}
 
 			return (optval != 0);
 #else
@@ -1686,12 +1692,12 @@ namespace other::net::sockets
 		int Socket::Send(const char* data, int size, int flags)
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 			// Проверяем валидность указателя и размера буфера.
 			if (data == nullptr || size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "Send failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1725,11 +1731,11 @@ namespace other::net::sockets
 		int Socket::SendOffset(const char* data, int offset, int size, int flags)
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 			if (data == nullptr || size <= 0 || offset < 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "Send failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1769,11 +1775,11 @@ namespace other::net::sockets
 		int Socket::SendTo(const char* data, int size, const std::string& toHost, int port, int flags)
 		{
 			if (!IsCreated())
-				return false;
+				return -1;
 
 			if (data == nullptr && size > 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "SendTo failed: data pointer is null.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1826,19 +1832,23 @@ namespace other::net::sockets
 
 			return bytesSent;
 		}
-
-		// Отправляет датаграмму (UDP) со смещением в буфере на указанный хост и порт.
+		
 		int Socket::SendToOffset(const char* data, int offset, int size, const std::string& toHost, int port, int flags)
-		{
-			if (data == nullptr || offset < 0 || size < 0)
-			{
-				CheckSocketError(SOCKET_ERROR, "SendToOffset: Invalid arguments.");
-				return -1;
-			}
+{
+	if (data == nullptr || offset < 0 || size < 0)
+	{
+		SET_NET_ERROR(SOCK_EINVAL);
+		return -1;
+	}
 
-			// Делегируем вызов основному методу SendTo, сдвинув указатель данных на offset
-			return SendTo(data + offset, size, toHost, port, flags);
-		}
+	if (size > INT_MAX - offset)
+	{
+		CheckSocketError(SOCKET_ERROR, "SendToOffset failed: Offset and size overflow.");
+		return -1;
+	}
+
+	return SendTo(data + offset, size, toHost, port, flags);
+}
 
 		// Принимает данные из сокета в предоставленный буфер (базовая версия).
 		int Socket::Recv(char* data, int size, int flags)
@@ -1848,7 +1858,7 @@ namespace other::net::sockets
 
 			if (data == nullptr || size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "Recv failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1886,14 +1896,14 @@ namespace other::net::sockets
 			// Проверяем валидность указателя, размера и смещения.
 			if (data == nullptr || size <= 0 || offset < 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvOffset failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
 			// Защита от целочисленного переполнения при вычислении смещенного указателя.
 			if (offset > INT_MAX - size)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvOffset failed: Offset and size overflow.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1930,7 +1940,7 @@ namespace other::net::sockets
 
 			if (data == nullptr || size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvFrom failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -1982,13 +1992,13 @@ namespace other::net::sockets
 		{
 			if (data == nullptr || offset < 0 || size < 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvFromOffset failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
-			if (offset > INT_MAX - size)
+			if (size > INT_MAX - offset)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvFromOffset failed: Offset and size overflow.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return -1;
 			}
 
@@ -2000,7 +2010,7 @@ namespace other::net::sockets
 		{
 			if (!IsCreated() || data == nullptr || size <= 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvAll failed: Invalid arguments or socket.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return false;
 			}
 
@@ -2026,13 +2036,13 @@ namespace other::net::sockets
 		{
 			if (data == nullptr || offset < 0 || size < 0)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvAllOffset failed: Invalid arguments.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return false;
 			}
 
-			if (offset > INT_MAX - size)
+			if (size > INT_MAX - offset)
 			{
-				CheckSocketError(SOCKET_ERROR, "RecvAllOffset failed: Offset and size overflow.");
+				SET_NET_ERROR(SOCK_EINVAL);
 				return false;
 			}
 

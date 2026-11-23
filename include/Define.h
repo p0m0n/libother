@@ -70,14 +70,7 @@
 // 10. ИЗОЛЯЦИЯ ПЛАТФОРМ И МАКРОСЫ СОВМЕСТИМОСТИ
 // ==========================================
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-    // Исключаем из windows.h редко используемые API (включая старый winsock.h).
-    #ifndef WIN32_LEAN_AND_MEAN
-        #define WIN32_LEAN_AND_MEAN
-    #endif
-	
-#   include <winsock2.h>
-#   include <ws2tcpip.h>
-#   include <windows.h>
+    #include <windows.h> // Заголовочный файл WinAPI для ОС Windows
 
     // Удаляем конфликтные макросы Windows, нарушающие работу C++ STL
     #ifdef min
@@ -86,14 +79,6 @@
     #ifdef max
         #undef max
     #endif
-	
-	#ifdef MIN
-        #undef MIN
-    #endif
-    #ifdef MAX
-        #undef MAX
-    #endif
-	
     #ifdef ARRAYSIZE
         #undef ARRAYSIZE
     #endif

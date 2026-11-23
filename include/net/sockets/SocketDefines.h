@@ -1,30 +1,32 @@
 #ifndef _OTHER_NET_SOCK_DEFINES_H_
 #define _OTHER_NET_SOCK_DEFINES_H_
 
-// Подключаем общий базовый заголовок библиотеки.
-#include "Define.h"
-
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#   define WIN32_LEAN_AND_MEAN
+#endif
+
+#   include <winsock2.h>
+#   include <ws2tcpip.h>
 #   include <iphlpapi.h>
 #   include <mswsock.h>
 
-    // Автоматическая линковка необходимых системных библиотек в MSVC.
+// Автоматическая линковка необходимых системных библиотек в MSVC
 #   pragma comment(lib, "ws2_32.lib")
 #   pragma comment(lib, "iphlpapi.lib")
 #else
 #   include <sys/socket.h>
-#   include <sys/ioctl.h>
-#   include <netinet/in.h>
-#   include <netinet/tcp.h>
 #   include <arpa/inet.h>
 #   include <netdb.h>
 #   include <unistd.h>
-#   include <fcntl.h>
 #   include <errno.h>
 #   include <string.h>
 #   include <poll.h>
 #endif
+
+// Подключаем общий базовый заголовок библиотеки
+#include "Define.h"
 
 namespace other::net::sockets
 {

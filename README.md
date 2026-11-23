@@ -12,3 +12,6 @@
    - `SocketSelector`— Инструмент мультиплексирования для синхронного мониторинга группы сокетов.
    - `StreamSocket`  — Кроссплатформенный потоковый адаптер для сокетов.
    
+**Кодирование**:
+   - `base`          — Набор алгоритмов кодирования и декодирования бинарных данных (Base16, Base26, Base32 / Hex / Crockford, Base36, Base45, Base58 Bitcoin / Flickr / Ripple, Base62, Base64 / URL, Base85 Math / Z85 / ASCII85 / PDF).
+   

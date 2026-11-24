@@ -1,274 +1,286 @@
-﻿#include <iostream>
-#include <thread>
+﻿#include "Socket.h"
+
 #include <chrono>
+#include <cstring>
+#include <iomanip>
+#include <iostream>
 #include <string>
-#include <cassert>
-#include "Socket.h"
-#include "TimeSpan.h"
+#include <thread>
+#include <vector>
 
 using namespace other::net::sockets;
-using namespace other::time;
 
-#define RUN_TEST(test_func) \
-    std::cout << "\n[ RUN      ] " << #test_func << std::endl; \
-    try { \
-        test_func(); \
-        std::cout << "[       OK ] " << #test_func << std::endl; \
-    } catch (const std::exception& e) { \
-        std::cerr << "[  FAILED  ] " << #test_func << " with exception: " << e.what() << std::endl; \
-        assert(false); \
-    }
-
-// 1. Тест базового жизненного цикла и состояний
-void TestLifecycleAndStates()
+namespace
 {
-    std::cout << "  -> Testing default constructor..." << std::endl;
-    Socket sock;
-    assert(sock.IsCreated() == false);
-    assert(sock.SockHandle() == INVALID_SOCKET);
+    int g_totalTests  = 0;
+    int g_passedTests = 0;
+    int g_failedTests = 0;
 
-    std::cout << "  -> Testing explicit creation (UDP)..." << std::endl;
-    // Предполагаем, что у тебя есть метод Create(int af, int type, int protocol) или аналогичный
-    // Если создание идет через системный socket + Attach, проверим через Attach:
-    socket_t raw = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(raw != INVALID_SOCKET);
-
-    assert(sock.Attach(raw) == true);
-    assert(sock.IsCreated() == true);
-    assert(sock.SockHandle() == raw);
-
-    std::cout << "  -> Testing manual Dispose..." << std::endl;
-    sock.Dispose();
-    assert(sock.IsCreated() == false);
-    assert(sock.SockHandle() == INVALID_SOCKET);
-}
-
-// 2. Тест корректности Attach и Detach (без утечек и ложных закрытий)
-void TestAttachDetachEdgeCases()
-{
-    Socket sock1;
-    socket_t raw1 = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    socket_t raw2 = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-    assert(sock1.Attach(raw1) == true);
-
-    // Повторный Attach должен корректно закрыть raw1 и привязать raw2
-    assert(sock1.Attach(raw2) == true);
-    assert(sock1.SockHandle() == raw2);
-
-    // Detach должен забрать дескриптор, оставив sock1 чистым
-    socket_t detached = sock1.Detach();
-    assert(detached == raw2);
-    assert(sock1.IsCreated() == false);
-    assert(sock1.SockHandle() == INVALID_SOCKET);
-
-    // Убираем за собой сырой дескриптор
-#ifdef _WIN32
-    closesocket(detached);
-#else
-    close(detached);
-#endif
-}
-
-// 3. Тест всех сетевых опций (Включение / Выключение и проверка успешности)
-void TestSocketOptionsToggles()
-{
-    Socket sock;
-    socket_t raw = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(sock.Attach(raw) == true);
-
-    // --- А. Reuse Address (SO_REUSEADDR) ---
-    std::cout << "  -> Testing SO_REUSEADDR (Enable/Disable)..." << std::endl;
-    bool setReuseOn = sock.SetReuseAddress(true);
-    assert(setReuseOn == true); // Проверяем успешность включения
-
-    bool setReuseOff = sock.SetReuseAddress(false);
-    assert(setReuseOff == true); // Проверяем успешность выключения
-
-    // --- Б. Keep-Alive (SO_KEEPALIVE) ---
-    std::cout << "  -> Testing SO_KEEPALIVE (Enable/Disable)..." << std::endl;
-    bool setKeepAliveOn = sock.SetKeepAlive(true);
-    assert(setKeepAliveOn == true);
-
-    bool setKeepAliveOff = sock.SetKeepAlive(false);
-    assert(setKeepAliveOff == true);
-
-    // --- В. Non-Blocking Mode ---
-    std::cout << "  -> Testing Non-Blocking Mode (Enable/Disable)..." << std::endl;
-    bool setNonBlockOn = sock.SetBlocking(true);
-    assert(setNonBlockOn == true);
-
-    bool setNonBlockOff = sock.SetBlocking(false);
-    assert(setNonBlockOff == true);
-
-    // --- Г. Timeouts с использованием твоего TimeSpan ---
-    std::cout << "  -> Testing Timeouts (Send/Receive via TimeSpan)..." << std::endl;
-    TimeSpan timeout = TimeSpan::FromSeconds(3); // Или TimeSpan::FromMilliseconds(500)
-
-    bool setRecvTimeout = sock.SetRecvTimeout(timeout);
-    assert(setRecvTimeout == true);
-
-    bool setSendTimeout = sock.SetSendTimeout(timeout);
-    assert(setSendTimeout == true);
-}
-
-// 4. Тест привязки адреса (Bind) и работы с локальной сетью
-void TestSocketBinding()
-{
-    Socket sock;
-    socket_t raw = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(sock.Attach(raw) == true);
-
-    sock.SetReuseAddress(true);
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(0); // Динамический свободный порт ОС
-
-    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-
-
-    std::cout << "  -> Testing Bind to loopback..." << std::endl;
-    int bindResult = bind(sock.SockHandle(), (struct sockaddr*)&addr, sizeof(addr));
-    assert(bindResult == 0); // Проверяем, что bind прошел успешно
-}
-
-void RunCompleteSocketTests()
-{
-    std::cout << "[TEST] Starting exhaustive Socket telemetry & functionality test...\n";
-
-    // ==========================================
-    // 1. Тест конструкторов и состояния по умолчанию
-    // ==========================================
+    void ReportTest(const std::string& name, bool condition)
     {
-        other::net::sockets::Socket sock;
-        assert(!sock.IsCreated());
-        assert(sock.SockHandle() == INVALID_SOCKET);
-        assert(sock.AddressFamily() == AF_UNSPEC);
-        assert(sock.SockType() == 0);
-        assert(sock.ProtocolType() == 0);
-        assert(sock.CloseTime() == other::time::DateTime::Zero);
-        std::cout << "[PASS] Default constructor and initial state checks.\n";
-    }
-
-    // ==========================================
-    // 2. Тест создания сокета (IPv6 / Dual-Stack)
-    // ==========================================
-    {
-        other::net::sockets::Socket sock = Socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-        // Создаем IPv6 сокет (он же Dual-Stack)
-        assert(sock.IsCreated());
-        assert(sock.SockHandle() != INVALID_SOCKET);
-        assert(sock.AddressFamily() == AF_INET6);
-        assert(sock.SockType() == SOCK_STREAM);
-        assert(sock.ProtocolType() == IPPROTO_TCP);
-
-        // Проверяем телеметрию времени старта
-        auto startTime = sock.StartTime();
-        
-
-        // Проверяем аптайм (Uptime)
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        auto uptime = sock.Uptime();
-        assert(uptime.Millisecond() >= 40);
-
-        // ==========================================
-        // 3. Тест конфигурации опций (Blocking & Dual-Stack)
-        // ==========================================
-
-        // Тест переключения режима блокировки
-        sock.SetBlocking(false);
-        assert(!sock.IsBlocking());
-        sock.SetBlocking(true);
-        assert(sock.IsBlocking());
-
-        // Тест настройки Dual-Mode (IPv6only)
-        sock.SetDualMode(true);  // Включить / Выключить
-        sock.SetDualMode(false);
-
-        // ==========================================
-        // 4. Тест Bind и Listen (базовая сетевая подготовка)
-        // ==========================================
-        // Привязываем к локальному порту для проверки
-        bool bound = sock.Bind("::1", 0); // Динамический порт на localhost IPv6
-        if (bound)
-        {
-            bool listening = sock.Listen(5);
-            assert(listening);
-            std::cout << "[PASS] Bind and Listen operations succeeded.\n";
-        }
+        ++g_totalTests;
+        if (condition)
+            ++g_passedTests;
         else
-        {
-            std::cout << "[INFO] Bind skipped/failed (network stack restriction in environment), continuing...\n";
-        }
+            ++g_failedTests;
 
-        // ==========================================
-        // 5. Тест деструктора / Dispose / Close / CloseTime
-        // ==========================================
-        sock.Dispose();
-        assert(!sock.IsCreated());
-        assert(sock.SockHandle() == INVALID_SOCKET);
-
-        auto closeTime = sock.CloseTime();
-        
-        std::cout << "[PASS] Dispose, lifecycle timestamps, and close time telemetry verified.\n";
+        std::cout << std::left << std::setw(58) << name
+                  << ": " << (condition ? "[  OK  ]" : "[ FAIL ]") << std::endl;
     }
 
-    // ==========================================
-    // 6. Тест Attach и Detach (низкоуровневые манипуляции)
-    // ==========================================
+    // 1. Проверка поддержки IPv4/IPv6, конструкторов, перемещения, Attach/Detach, Clone и Dispose.
+    void TestLifecycleAndOwnership()
     {
-        // Создаем сырой системный сокет вручную
-        socket_t rawHandle = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (rawHandle != INVALID_SOCKET)
+        std::cout << "\n=== 1. Lifecycle, constructors, Move, Attach/Detach ===\n";
+
+        ReportTest("Socket::SupportsIPv4()", Socket::SupportsIPv4());
+
+        // Пустой конструктор
+        Socket emptySock;
+        ReportTest("Default ctor (IsClosed, !IsCreated, !IsBound)",
+            emptySock.IsClosed() && !emptySock.IsCreated() && !emptySock.IsBound() &&
+            emptySock.SockHandle() == INVALID_SOCKET && emptySock.LocalPort() == -1);
+
+        // Создание IPv4 TCP сокета
+        Socket s1(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        ReportTest("Socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)",
+            s1.IsCreated() && !s1.IsClosed() &&
+            s1.AddressFamily() == AF_INET &&
+            s1.SockType() == SOCK_STREAM &&
+            s1.ProtocolType() == IPPROTO_TCP &&
+            s1.StartTime().Ticks() > 0);
+
+        // Move-конструктор
+        socket_t origHandle = s1.SockHandle();
+        Socket s2(std::move(s1));
+        ReportTest("Move ctor (transfers handle, clears source)",
+            s2.IsCreated() && s2.SockHandle() == origHandle && s1.IsClosed());
+
+        // Move-присваивание
+        Socket s3;
+        s3 = std::move(s2);
+        ReportTest("Move assignment (transfers handle, clears source)",
+            s3.IsCreated() && s3.SockHandle() == origHandle && s2.IsClosed());
+
+        // Detach + Attach (проверяем, что метаданные восстанавливаются)
+        socket_t detached = s3.Detach();
+        ReportTest("Detach() (returns handle, clears socket)",
+            detached == origHandle && s3.IsClosed() && s3.AddressFamily() == 0);
+
+        Socket s4;
+        bool attached = s4.Attach(detached);
+        ReportTest("Attach() (restores handle, family, type, protocol)",
+            attached && s4.IsCreated() && s4.SockHandle() == origHandle &&
+            s4.AddressFamily() == AF_INET && s4.SockType() == SOCK_STREAM && s4.ProtocolType() == IPPROTO_TCP);
+
+        // SockClone
+        Socket cloned = s4.SockClone();
+        ReportTest("SockClone() (new handle, same family/type/protocol)",
+            cloned.IsCreated() && cloned.SockHandle() != s4.SockHandle() &&
+            cloned.AddressFamily() == s4.AddressFamily() && cloned.SockType() == s4.SockType());
+
+        // Close & CloseTime & SockUptime
+        bool closed = s4.Close();
+        ReportTest("Close() (IsClosed, CloseTime set, SockUptime >= 0)",
+            closed && s4.IsClosed() && s4.CloseTime().Ticks() > 0 && s4.SockUptime().Ticks() >= 0);
+
+        // Dispose
+        ReportTest("Dispose() (closes and resets metadata)",
+            cloned.Dispose() && cloned.IsClosed() && cloned.AddressFamily() == 0);
+    }
+
+    // 2. Проверка сокетных опций.
+    void TestSocketOptions()
+    {
+        std::cout << "\n=== 2. Socket options (ReuseAddr, KeepAlive, NoDelay, Buffers, Timeouts, Linger, TTL) ===\n";
+
+        Socket tcp(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+        ReportTest("SetReuseAddress(true) / IsReuseAddress()",
+            tcp.SetReuseAddress(true) && tcp.IsReuseAddress());
+
+        ReportTest("SetKeepAlive(true) / IsKeepAlive()",
+            tcp.SetKeepAlive(true) && tcp.IsKeepAlive());
+
+        ReportTest("SetNoDelay(true) / IsNoDelay()",
+            tcp.SetNoDelay(true) && tcp.IsNoDelay());
+
+        ReportTest("SetBlocking(false) -> IsBlocking() == false",
+            tcp.SetBlocking(false) && !tcp.IsBlocking());
+
+        ReportTest("SetBlocking(true) -> IsBlocking() == true",
+            tcp.SetBlocking(true) && tcp.IsBlocking());
+
+        ReportTest("SetSendTimeout(1500) / GetSendTimeout()",
+            tcp.SetSendTimeout(1500) == 0 && tcp.GetSendTimeout() >= 1000);
+
+        ReportTest("SetRecvTimeout(2000) / GetRecvTimeout()",
+            tcp.SetRecvTimeout(2000) == 0 && tcp.GetRecvTimeout() >= 1500);
+
+        ReportTest("SetSendTimeout(-1) -> infinite (-1)",
+            tcp.SetSendTimeout(-1) == 0 && tcp.GetSendTimeout() == -1);
+
+        ReportTest("SetSendBufferSize / GetSendBufferSize",
+            tcp.SetSendBufferSize(32768) == 0 && tcp.GetSendBufferSize() > 0);
+
+        ReportTest("SetRecvBufferSize / GetRecvBufferSize",
+            tcp.SetRecvBufferSize(32768) == 0 && tcp.GetRecvBufferSize() > 0);
+
+        bool lingerOn = false;
+        int lingerSec = 0;
+        ReportTest("SetLingerState(true, 2) / GetLingerState()",
+            tcp.SetLingerState(true, 2) == 0 && tcp.GetLingerState(lingerOn, lingerSec) == 0 &&
+            lingerOn == true && lingerSec == 2);
+
+        ReportTest("SetTtl(64) / GetTtl()",
+            tcp.SetTtl(64) && tcp.GetTtl() == 64);
+
+        ReportTest("SetDontFragment(true) / IsDontFragment()",
+            tcp.SetDontFragment(true) && tcp.IsDontFragment());
+
+        Socket udp(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        ReportTest("SetBroadcast(true) / IsBroadcast() on UDP",
+            udp.SetBroadcast(true) && udp.IsBroadcast());
+
+        ReportTest("SetMulticastLoopback(false) / IsMulticastLoopback()",
+            udp.SetMulticastLoopback(false) && !udp.IsMulticastLoopback());
+
+        if (Socket::SupportsIPv6())
         {
-            other::net::sockets::Socket sock;
-
-            // Прикрепляем сырой хендл
-            bool attached = sock.Attach(rawHandle);
-            assert(attached);
-            assert(sock.IsCreated());
-            assert(sock.SockHandle() == rawHandle);
-
-            // Открепляем хендл обратно (Detach)
-            socket_t detachedHandle = sock.Detach();
-            assert(detachedHandle == rawHandle);
-            assert(!sock.IsCreated()); // Сам объект больше не владеет сокетом
-            assert(sock.SockHandle() == INVALID_SOCKET);
-
-            // Ручное закрытие открепленного хендла, чтобы избежать утечки в ОС
-#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
-            ::closesocket(detachedHandle);
-#else
-            ::close(detachedHandle);
-#endif
-            std::cout << "[PASS] Attach and Detach socket mechanics verified.\n";
+            Socket dual(SOCK_STREAM, IPPROTO_TCP);
+            ReportTest("Dual-Stack IPv6 ctor (IsDualMode)",
+                dual.IsCreated() && dual.AddressFamily() == AF_INET6 && dual.IsDualMode());
         }
     }
 
-    std::cout << "[SUCCESS] All Socket module tests passed with absolute coverage!\n";
+    // 3. Тест TCP: Bind, Listen, Connect, Accept, Send/Recv/Offset/All, Available, Poll, Select, Disconnect.
+    void TestTcpLoopback()
+    {
+        std::cout << "\n=== 3. TCP: Bind, Listen, Connect, Accept, Send/Recv, Poll, Select ===\n";
+
+        Socket server(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        server.SetReuseAddress(true);
+
+        ReportTest("Bind(\"127.0.0.1\", 0) (ephemeral port) + IsBound()",
+            server.Bind("127.0.0.1", 0) && server.IsBound() && server.LocalPort() > 0);
+
+        ReportTest("Bind(invalid port 70000 -> false)", !server.Bind(70000));
+
+        const int port = server.LocalPort();
+        ReportTest("LocalAddress(true) contains 127.0.0.1",
+            server.LocalAddress(true).find("127.0.0.1:" + std::to_string(port)) != std::string::npos);
+
+        ReportTest("Listen(4)", server.Listen(4));
+
+        bool clientOk = false;
+        std::thread clientThread([port, &clientOk]() {
+            Socket client(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            // Тестируем Connect с таймаутом 2000 мс и SendAllOffset
+            if (!client.Connect("127.0.0.1", port, 2000))
+                return;
+
+            const char msg[] = "XXHelloTCP";
+            if (!client.SendAllOffset(msg, 2, 8))
+                return;
+
+            char reply[16] = {};
+            if (!client.RecvAll(reply, 5))
+                return;
+
+            clientOk = (std::memcmp(reply, "ACK!!", 5) == 0) &&
+                       (client.RemotePort() == port) &&
+                       (client.RemoteAddress(false) == "127.0.0.1");
+
+            client.Disconnect(false);
+        });
+
+        // Проверяем Select() на прослушивающем сокете
+        std::vector<Socket*> readList  = { &server };
+        std::vector<Socket*> writeList = {};
+        std::vector<Socket*> errList   = {};
+        int sel = Socket::Select(readList, writeList, errList, 2000);
+        ReportTest("Socket::Select() detects incoming connection",
+            sel > 0 && readList.size() == 1 && readList[0] == &server);
+
+        Socket peer = server.Accept();
+        ReportTest("Accept() + IsConnected()",
+            peer.IsCreated() && peer.IsConnected() && peer.RemotePort() > 0);
+
+        ReportTest("PollRead(2000) + PollWrite(1000)",
+            peer.PollRead(2000) && peer.PollWrite(1000));
+
+        char buf[16] = {};
+        bool recvOk = peer.RecvAllOffset(buf, 2, 8);
+        ReportTest("RecvAllOffset() received \"HelloTCP\"",
+            recvOk && std::memcmp(buf + 2, "HelloTCP", 8) == 0);
+
+        int sent = peer.Send("ACK!!", 5);
+        ReportTest("Send(\"ACK!!\") == 5", sent == 5);
+
+        clientThread.join();
+        ReportTest("Client thread round-trip (SendOffset, RecvAll, RemoteAddress)", clientOk);
+
+        // Проверяем счётчики трафика и GetSocketError()
+        ReportTest("BytesSent() == 5 && BytesReceived() == 8", peer.BytesSent() == 5 && peer.BytesRecv() == 8);
+        peer.ResetStats();
+        ReportTest("ResetStats() zeroes BytesSent & BytesReceived", peer.BytesSent() == 0 && peer.BytesRecv() == 0);
+        ReportTest("GetSocketError() == 0 on healthy socket", server.SockError() == 0);
+
+        // Проверка JoinMulticastGroup с невалидным IP
+        Socket mcast(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        ReportTest("JoinMulticastGroup(invalid IP -> false)",
+            !mcast.JoinMulticastGroup("not.an.ip"));
+
+        // Даём ядру обработать FIN от клиента и проверяем IsConnected()
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        ReportTest("IsConnected() == false after peer disconnect", !peer.IsConnected());
+    }
+
+    // 4. Тест UDP: SendTo / SendToOffset / RecvFrom / RecvFromOffset.
+    void TestUdpLoopback()
+    {
+        std::cout << "\n=== 4. UDP: SendTo / SendToOffset / RecvFrom / RecvFromOffset ===\n";
+
+        Socket receiver(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        Socket sender(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+        ReportTest("UDP Bind(\"127.0.0.1\", 0)",
+            receiver.Bind("127.0.0.1", 0) && receiver.LocalPort() > 0);
+
+        int recvPort = receiver.LocalPort();
+        const char payload[] = "___UDP_PAYLOAD";
+        int sent = sender.SendToOffset(payload, 3, 11, "127.0.0.1", recvPort);
+        ReportTest("UDP SendToOffset() == 11", sent == 11);
+
+        ReportTest("UDP PollRead(1000) && Available() > 0",
+            receiver.PollRead(1000) && receiver.Available() >= 11);
+
+        char recvBuf[32] = {};
+        std::string fromHost;
+        int fromPort = 0;
+        int got = receiver.RecvFromOffset(recvBuf, 1, 20, fromHost, fromPort);
+        ReportTest("UDP RecvFromOffset() data + sender host/port",
+            got == 11 && std::memcmp(recvBuf + 1, "UDP_PAYLOAD", 11) == 0 &&
+            fromHost == "127.0.0.1" && fromPort > 0);
+    }
 }
 
 int main()
 {
-    std::cout << "=== STARTING FULL SOCKET API & OPTIONS TESTS ===" << std::endl;
+    std::cout << "====================================================================\n";
+    std::cout << "                     Socket Global Test Suite                       \n";
+    std::cout << "====================================================================\n";
 
-#ifdef _WIN32
-    // Инициализация Winsock, если требуется в твоей реализации main
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
+    TestLifecycleAndOwnership();
+    TestSocketOptions();
+    TestTcpLoopback();
+    TestUdpLoopback();
 
-    RUN_TEST(TestLifecycleAndStates);
-    RUN_TEST(TestAttachDetachEdgeCases);
-    RUN_TEST(TestSocketOptionsToggles);
-    RUN_TEST(TestSocketBinding);
-    RUN_TEST(RunCompleteSocketTests);
+    std::cout << "\n====================================================================\n";
+    std::cout << "TOTAL: " << g_passedTests << " / " << g_totalTests << " completed, "
+              << g_failedTests << " failed -> "
+              << (g_failedTests == 0 ? "[  OK  ]" : "[ FAIL ]") << std::endl;
+    std::cout << "====================================================================\n";
 
-#ifdef _WIN32
-    WSACleanup();
-#endif
-
-    std::cout << "\n=== ALL SOCKET API & OPTIONS TESTS PASSED SUCCESSFULLY! ===" << std::endl;
-    return 0;
+    return (g_failedTests == 0) ? 0 : 1;
 }

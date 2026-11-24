@@ -19,6 +19,7 @@
 #else
 #   include <sys/socket.h>
 #   include <sys/ioctl.h>
+#   include <sys/epoll.h>
 #   include <netinet/in.h>
 #   include <netinet/tcp.h>
 #   include <arpa/inet.h>

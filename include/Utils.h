@@ -62,7 +62,109 @@ namespace other::utils
          * @brief Декодирует UTF-8 строку в кроссплатформенную std::wstring (UTF-16 на Windows, UTF-32 на Linux/macOS).
          */
         bool Utf8ToWide(std::string_view input, std::wstring& output);
-    }
+    } // !End namespace utf8.
+
+
+    /** @brief Templates Global. */
+    namespace hpp
+    {
+        // Строго парсит строку как знаковое целое типа T (без мусора в хвосте и с проверкой границ).
+        template <typename T>
+        bool ParseSignedInt(const std::string& line, T& outValue) noexcept
+        {
+            if (line.empty())
+                return false;
+            try
+            {
+                size_t idx = 0;
+                long long parsed = std::stoll(line, &idx, 10);
+                if (idx != line.length())
+                    return false;
+                if (parsed < static_cast<long long>(std::numeric_limits<T>::min()) ||
+                    parsed > static_cast<long long>(std::numeric_limits<T>::max()))
+                    return false;
+
+                outValue = static_cast<T>(parsed);
+                return true;
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+
+        // Строго парсит строку как беззнаковое целое типа T (отклоняет '-' даже после ведущих пробелов).
+        template <typename T>
+        bool ParseUnsignedInt(const std::string& line, T& outValue) noexcept
+        {
+            if (line.empty())
+                return false;
+
+            // Отклоняем ведущий минус: std::stoull иначе молча обернёт "-1" в UINT64_MAX.
+            for (char ch : line)
+            {
+                if (!std::isspace(static_cast<unsigned char>(ch)))
+                {
+                    if (ch == '-')
+                        return false;
+                    break;
+                }
+            }
+
+            try
+            {
+                size_t idx = 0;
+                unsigned long long parsed = std::stoull(line, &idx, 10);
+                if (idx != line.length())
+                    return false;
+                if (parsed > static_cast<unsigned long long>(std::numeric_limits<T>::max()))
+                    return false;
+
+                outValue = static_cast<T>(parsed);
+                return true;
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+
+        // Строго парсит конечное вещественное число в классической C-локали (NaN, Inf и лишний хвост отклоняются).
+        template <typename T>
+        bool ParseFiniteFloat(const std::string& line, T& outValue) noexcept
+        {
+            if (line.empty())
+                return false;
+            try
+            {
+                std::istringstream iss(line);
+                iss.imbue(std::locale::classic());
+
+                T parsed{};
+                if (!(iss >> parsed) || !iss.eof() || !std::isfinite(parsed))
+                    return false;
+
+                outValue = parsed;
+                return true;
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+
+        // Форматирует вещественное число в классической C-локали с заданной точностью и завершающим '\n'.
+        template <typename T>
+        std::string FormatFloatLine(T value, int precision)
+        {
+            std::ostringstream oss;
+            oss.imbue(std::locale::classic());
+            oss << std::setprecision(precision) << value << '\n';
+            return oss.str();
+        }
+
+    } // !End namespace hpp.
+
 }
 
 #endif // LIBOTHER_UTILS_H

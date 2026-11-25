@@ -774,16 +774,8 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
     }
 
-    // Проверяет, валиден ли дескриптор сокета (если закрыт — выставляет SOCK_EBADF).
-    bool Socket::IsCreated() const noexcept
-    {
-        if (_handle != INVALID_SOCKET)
-            return true;
-
-        SET_NET_ERROR(SOCK_EBADF);
-        return false;
-    }
-
+    // Проверяет, валиден ли дескриптор сокета.
+    bool Socket::IsCreated() const noexcept { return _handle != INVALID_SOCKET; }
     // Проверяет, закрыт ли сокет (не изменяет GET_NET_ERROR()).
     bool Socket::IsClosed() const noexcept { return _handle == INVALID_SOCKET; }
 
@@ -1962,7 +1954,7 @@ namespace other::net::sockets
 #else
             // На Linux TCP-сокет нельзя переиспользовать без закрытия.
             Close();
-            SET_NET_ERROR(SOCK_ENOTSUP);
+            SET_NET_ERROR(SOCK_EOPNOTSUPP);
             return false;
 #endif
         }

@@ -232,7 +232,7 @@ namespace other::net::sockets
         int RemotePort() const;
         /**
          * @brief Проверяет, создан ли и открыт ли системный дескриптор сокета.
-         * @return `true`, если дескриптор валиден (`_handle != INVALID_SOCKET`); `false` иначе (выставляет `SOCK_EBADF`).
+         * @return `true`, если дескриптор валиден (`_handle != INVALID_SOCKET`);  иначе `false`.
          * @note Гарантированно не выбрасывает исключений (`noexcept`).
          */
         bool IsCreated() const noexcept;

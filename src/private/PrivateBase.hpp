@@ -1,45 +1,84 @@
+/**
+ * @file PrivateBase.hpp
+ * @brief Внутренние алфавиты и базовые алгоритмы кодирования и декодирования семейства Base-N.
+ *
+ * @details
+ * Этот заголовок предназначен исключительно для внутреннего использования внутри реализации
+ * модуля кодирования и не является частью публичного API библиотеки. Он объединяет стандартные
+ * таблицы символов и низкоуровневые механизмы преобразования произвольных бинарных данных
+ * в текстовое представление и обратно.
+ *
+ * Внутри реализованы три основные стратегии преобразования:
+ * - побитовая упаковка для систем с основанием, являющимся степенью двойки (например, Base16, Base32, Base64);
+ * - позиционный перевод длинной арифметики для произвольных алфавитов с сохранением ведущих нулевых байтов (например, Base58, Base62);
+ * - блочное преобразование фиксированных групп байтов для компактных форматов (Base45 и семейство Base85).
+ *
+ * Все функции при старте и при обнаружении некорректных входных данных очищают выходной буфер,
+ * возвращая булев признак успеха без выброса исключений форматирования.
+ */
+
 #ifndef LIBOTHER_PRIVATEBASE_HPP
 #define LIBOTHER_PRIVATEBASE_HPP
 
 #include "Utils.h"
 
+
 namespace other::crypt
 {
-    /** BASE-16 (Hexadecimal) — RFC 4648 Section 8 */
+    ///////////////////////////////////////////////////////////////////////
+    ///            СТАНДАРТНЫЕ АЛФАВИТЫ КОДИРОВАНИЯ                     ///
+    ///////////////////////////////////////////////////////////////////////
+
+    /** @brief Алфавит Base16 (шестнадцатеричный, верхний регистр) — RFC 4648 Section 8. */
     inline constexpr const char* BASE16_MAP           = "0123456789ABCDEF";
-    /** BASE-26 (Alphabetic) */
+    /** @brief Алфавит Base26 (латинские заглавные буквы A–Z). */
     inline constexpr const char* BASE26_MAP           = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    /** BASE-32 — RFC 4648 Section 6 */
+    /** @brief Алфавит Base32 — RFC 4648 Section 6. */
     inline constexpr const char* BASE32_MAP           = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    /** BASE-32-HEX — RFC 4648 Section 7 */
+    /** @brief Алфавит Base32Hex (с расширенным шестнадцатеричным порядком) — RFC 4648 Section 7. */
     inline constexpr const char* BASE32_HEX_MAP       = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
-    /** BASE-32-CROCKFORD (без I, L, O) */
+    /** @brief Алфавит Base32 Crockford (исключены визуально похожие символы I, L, O, U). */
     inline constexpr const char* BASE32_CROCKFORD_MAP = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-    /** BASE-36 (Alphanumeric) */
+    /** @brief Алфавит Base36 (цифры и заглавные латинские буквы, без учёта регистра). */
     inline constexpr const char* BASE36_MAP           = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    /** BASE-45 (RFC 9285, QR-коды) */
+    /** @brief Алфавит Base45 (компактное представление для QR-кодов) — RFC 9285. */
     inline constexpr const char* BASE45_MAP           = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-    /** BASE-58-BITCOIN */
+    /** @brief Алфавит Base58 Bitcoin (без 0, O, I, l для исключения ошибок чтения человеком). */
     inline constexpr const char* BASE58_BITCOIN       = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-    /** BASE-58-FLICKR */
+    /** @brief Алфавит Base58 Flickr (сначала строчные буквы, затем заглавные). */
     inline constexpr const char* BASE58_FLICKR        = "123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
-    /** BASE-58-RIPPLE */
+    /** @brief Алфавит Base58 Ripple (специализированный порядок символов протокола Ripple). */
     inline constexpr const char* BASE58_RIPPLE        = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
-    /** BASE-62 (Alphanumeric Case-Sensitive) */
+    /** @brief Алфавит Base62 (цифры, заглавные и строчные латинские буквы, регистрозависимый). */
     inline constexpr const char* BASE62_MAP           = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    /** BASE-64 — RFC 4648 Section 4 */
+    /** @brief Алфавит Base64 (стандартный) — RFC 4648 Section 4. */
     inline constexpr const char* BASE64_MAP           = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    /** BASE-64-URL — RFC 4648 Section 5 */
+    /** @brief Алфавит Base64URL (безопасный для URL и имён файлов) — RFC 4648 Section 5. */
     inline constexpr const char* BASE64_URL_MAP       = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    /** BASE-85-MATH */
+    /** @brief Алфавит Base85 Math (математический / совместимый с Z85 набор символов). */
     inline constexpr const char* BASE85_MATH_MAP      = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#";
-    /** BASE-85-Z85 (ZeroMQ) */
+    /** @brief Алфавит Base85 Z85 (стандарт ZeroMQ). */
     inline constexpr const char* BASE85_Z85_MAP       = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#";
-    /** BASE-85-ASCII85 (Adobe) */
+    /** @brief Алфавит Base85 ASCII85 (Adobe, печатные символы ASCII от '!' до 'u'). */
     inline constexpr const char* BASE85_ASCII85_MAP   = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstu";
 
+
+    ///////////////////////////////////////////////////////////////////////
+    ///            ВНУТРЕННИЕ ФУНКЦИИ КОДИРОВАНИЯ И ДЕКОДИРОВАНИЯ       ///
+    ///////////////////////////////////////////////////////////////////////
+
     /**
-     * @brief Универсальное побитовое кодирование (Base16, Base32, Base64).
+     * @brief Выполняет побитовое кодирование массива байтов в текстовое представление (Base16, Base32, Base64 и аналоги).
+     *
+     * Разбивает поток входных битов на группы по `bits` бит и сопоставляет каждой группе символ из `alphabet`.
+     * Для `bits == 5` (Base32) и `bits == 6` (Base64) автоматически дополняет результат символами `'='`
+     * до кратности 8 и 4 символов соответственно.
+     * @param [in]  input    Исходный массив байтов для кодирования (если пуст — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходная закодированная строка (предварительно очищается).
+     * @param [in]  alphabet Алфавит кодирования длиной не менее `2^bits` символов.
+     * @param [in]  bits     Количество бит на один выходной символ (допустимый диапазон `1..8`, например `4`, `5`, `6`).
+     * @return `true` при успешном кодировании; `false`, если `bits` вне диапазона `1..8` или алфавит слишком короток.
+     * @throws std::bad_alloc При нехватке памяти для расширения строки `output`.
      */
     inline bool InternalEncodeBitwise(const std::vector<uint8_t>& input, std::string& output, const std::string& alphabet, int bits)
     {
@@ -93,7 +132,17 @@ namespace other::crypt
     }
 
     /**
-     * @brief Универсальное побитовое декодирование (Base16, Base32, Base64).
+     * @brief Выполняет побитовое декодирование строки обратно в массив байтов (Base16, Base32, Base64 и аналоги).
+     *
+     * Игнорирует стандартные пробельные символы (`std::isspace`), проверяет корректность символов дополнения `'='`
+     * (допустимы только в конце строки для `bits == 5` и `bits == 6`) и валидирует нулевые биты выравнивания в хвосте.
+     * @param [in]  input    Входная закодированная строка (если пуста — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходной массив декодированных байтов (очищается в начале вызова и при любой ошибке).
+     * @param [in]  alphabet Алфавит декодирования длиной не менее `2^bits` символов.
+     * @param [in]  bits     Количество бит на один входной символ (допустимый диапазон `1..8`).
+     * @return `true` при успешном декодировании; `false` при неверных параметрах, неизвестных символах,
+     *         некорректном расположении `'='` или невалидном битовом хвосте.
+     * @throws std::bad_alloc При нехватке памяти для расширения вектора `output`.
      */
     inline bool InternalDecodeBitwise(const std::string& input, std::vector<uint8_t>& output, const std::string& alphabet, int bits)
     {
@@ -166,7 +215,16 @@ namespace other::crypt
     }
 
     /**
-     * @brief Кодирование через перевод системы счисления (BigInt).
+     * @brief Кодирует массив байтов через перевод большого целого числа в позиционную систему счисления по основанию `alphabet.size()`.
+     *
+     * Используется для кодировок с основанием, не являющимся степенью двойки (например, Base26, Base36, Base58, Base62).
+     * Каждый ведущий нулевой байт `0x00` на входе сохраняется в начале результата как символ `alphabet[0]`.
+     * @param [in]  input    Исходный массив байтов (если пуст — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходная закодированная строка (предварительно очищается).
+     * @param [in]  alphabet Алфавит кодирования (должен содержать не менее `2` символов).
+     * @return `true` при успехе; `false`, если длина `alphabet` меньше `2`.
+     * @note Временная сложность алгоритма составляет $O(N^2)$ от числа входных байтов.
+     * @throws std::bad_alloc При нехватке памяти для промежуточного буфера или строки `output`.
      */
     inline bool InternalEncodeBigInt(const std::vector<uint8_t>& input, std::string& output, const std::string& alphabet)
     {
@@ -212,7 +270,16 @@ namespace other::crypt
     }
 
     /**
-     * @brief Декодирование через перевод системы счисления (BigInt).
+     * @brief Декодирует строку из произвольной позиционной системы счисления обратно в массив байтов.
+     *
+     * Каждый ведущий символ `alphabet[0]` преобразуется обратно в ведущий нулевой байт `0x00`.
+     * @param [in]  input    Входная закодированная строка (если пуста — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходной массив байтов (очищается в начале вызова и при ошибке).
+     * @param [in]  alphabet Алфавит декодирования (должен содержать не менее `2` символов).
+     * @return `true` при успешном декодировании; `false`, если длина алфавита меньше `2` либо во входной строке
+     *         встретился символ, отсутствующий в `alphabet`.
+     * @note Временная сложность составляет $O(N^2)$ от длины входной строки.
+     * @throws std::bad_alloc При нехватке памяти для промежуточного буфера или вектора `output`.
      */
     inline bool InternalDecodeBigInt(const std::string& input, std::vector<uint8_t>& output, const std::string& alphabet)
     {
@@ -261,7 +328,15 @@ namespace other::crypt
     }
 
     /**
-     * @brief Блочное кодирование Base45 (RFC 9285).
+     * @brief Выполняет блочное кодирование Base45 по спецификации RFC 9285.
+     *
+     * Каждые 2 входных байта (16-битное число в Big-Endian) кодируются в 3 символа по основанию 45
+     * (от младшего разряда к старшему); одиночный оставшийся байт кодируется в 2 символа.
+     * @param [in]  input    Исходный массив байтов (если пуст — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходная закодированная строка Base45 (предварительно очищается).
+     * @param [in]  alphabet Алфавит Base45 длиной не менее `45` символов.
+     * @return `true` при успехе; `false`, если длина `alphabet` меньше `45`.
+     * @throws std::bad_alloc При нехватке памяти для расширения строки `output`.
      */
     inline bool InternalEncodeBlock45(const std::vector<uint8_t>& input, std::string& output, const std::string& alphabet)
     {
@@ -297,7 +372,16 @@ namespace other::crypt
     }
 
     /**
-     * @brief Блочное декодирование Base45 (RFC 9285).
+     * @brief Выполняет блочное декодирование строки Base45 по спецификации RFC 9285.
+     *
+     * Преобразует группы по 3 символа обратно в 2 байта, а финальную группу из 2 символов — в 1 байт,
+     * контролируя переполнение значений (`> 0xFFFF` для 3 символов и `> 0xFF` для 2 символов).
+     * @param [in]  input    Входная закодированная строка Base45 (если пуста — возвращает `true` и пустой `output`).
+     * @param [out] output   Выходной массив декодированных байтов (очищается в начале вызова и при ошибке).
+     * @param [in]  alphabet Алфавит Base45 длиной не менее `45` символов.
+     * @return `true` при успешном декодировании; `false` при коротком алфавите, одиночном неполном символе в хвосте,
+     *         неизвестном символе или переполнении декодированного блока.
+     * @throws std::bad_alloc При нехватке памяти для расширения вектора `output`.
      */
     inline bool InternalDecodeBlock45(const std::string& input, std::vector<uint8_t>& output, const std::string& alphabet)
     {
@@ -365,7 +449,18 @@ namespace other::crypt
     }
 
     /**
-     * @brief Блочное кодирование Base85 (ASCII85 / Z85).
+     * @brief Выполняет блочное кодирование семейства Base85 (ASCII85 / Z85).
+     *
+     * Упаковывает каждые 4 входных байта (32-битное число в Big-Endian) в 5 символов по основанию 85.
+     * Неполный финальный блок длиной `k` байт (`1..3`) дополняется нулями справа и записывается как `k + 1` символ.
+     * В режиме ASCII85 полный нулевой 4-байтный блок сокращается до одного символа `'z'`.
+     * @param [in]  input     Исходный массив байтов (если пуст — возвращает `true` и пустой `output`).
+     * @param [out] output    Выходная закодированная строка Base85 (предварительно очищается).
+     * @param [in]  alphabet  Алфавит Base85 длиной не менее `85` символов.
+     * @param [in]  isAscii85 Если `true` — включает сжатие нулевых 4-байтных блоков в `'z'` (формат Adobe ASCII85);
+     *                        если `false` — кодирует без сокращения `'z'` (формат Z85 / Math).
+     * @return `true` при успехе; `false`, если длина `alphabet` меньше `85`.
+     * @throws std::bad_alloc При нехватке памяти для расширения строки `output`.
      */
     inline bool InternalEncodeBlock85(const std::vector<uint8_t>& input, std::string& output, const std::string& alphabet, bool isAscii85)
     {
@@ -429,7 +524,18 @@ namespace other::crypt
     }
 
     /**
-     * @brief Блочное декодирование Base85 (ASCII85 / Z85).
+     * @brief Выполняет блочное декодирование строки семейства Base85 (ASCII85 / Z85).
+     *
+     * Игнорирует стандартные пробельные символы (`std::isspace`), поддерживает распаковку `'z'` в четыре
+     * нулевых байта в режиме ASCII85 и проверяет переполнение 32-битного значения (`> 0xFFFFFFFF`).
+     * @param [in]  input     Входная закодированная строка Base85 (если пуста — возвращает `true` и пустой `output`).
+     * @param [out] output    Выходной массив декодированных байтов (очищается в начале вызова и при ошибке).
+     * @param [in]  alphabet  Алфавит Base85 длиной не менее `85` символов.
+     * @param [in]  isAscii85 Если `true` — распознаёт символ `'z'` как сокращение для четырёх нулевых байтов (ASCII85);
+     *                        если `false` — обрабатывает `'z'` исключительно как обычный символ алфавита (Z85 / Math).
+     * @return `true` при успешном декодировании; `false` при коротком алфавите, недопустимом символе,
+     *         переполнении 32-битного блока или одиночном висячем символе в конце потока.
+     * @throws std::bad_alloc При нехватке памяти для расширения вектора `output`.
      */
     inline bool InternalDecodeBlock85(const std::string& input, std::vector<uint8_t>& output, const std::string& alphabet, bool isAscii85)
     {

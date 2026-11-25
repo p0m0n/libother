@@ -128,7 +128,7 @@ namespace other::net::sockets
         : Socket(AF_INET6, type, protocol)
     {
         // Если сокет создался, но режим Dual-Stack выключен — включаем его (IPV6_V6ONLY = 0).
-        if (IsCreated() && !IsDualMode())
+        if (!IsClosed() && !IsDualMode())
             SetDualMode(true);
     }
 
@@ -165,14 +165,14 @@ namespace other::net::sockets
         , _bytesRecv(other._bytesRecv)
     {
         // Обязательно обнуляем источник, иначе его деструктор закроет перенесённый дескриптор.
-        other._handle        = INVALID_SOCKET;
-        other._family        = 0;
-        other._type          = 0;
-        other._protocol      = 0;
-        other._blocking      = true;
-        other._start_t       = other::time::DateTime::Zero;
-        other._close_t       = other::time::DateTime::Zero;
-        other._bytesSent     = 0;
+        other._handle    = INVALID_SOCKET;
+        other._family    = 0;
+        other._type      = 0;
+        other._protocol  = 0;
+        other._blocking  = true;
+        other._start_t   = other::time::DateTime::Zero;
+        other._close_t   = other::time::DateTime::Zero;
+        other._bytesSent = 0;
         other._bytesRecv = 0;
     }
 
@@ -184,25 +184,25 @@ namespace other::net::sockets
             // Сначала закрываем наш текущий сокет во избежание утечки дескриптора.
             Dispose();
 
-            _handle        = other._handle;
-            _family        = other._family;
-            _type          = other._type;
-            _protocol      = other._protocol;
-            _blocking      = other._blocking;
-            _start_t       = other._start_t;
-            _close_t       = other._close_t;
-            _bytesSent     = other._bytesSent;
+            _handle    = other._handle;
+            _family    = other._family;
+            _type      = other._type;
+            _protocol  = other._protocol;
+            _blocking  = other._blocking;
+            _start_t   = other._start_t;
+            _close_t   = other._close_t;
+            _bytesSent = other._bytesSent;
             _bytesRecv = other._bytesRecv;
 
             // Сбрасываем источник в безопасное пустое состояние.
-            other._handle        = INVALID_SOCKET;
-            other._family        = 0;
-            other._type          = 0;
-            other._protocol      = 0;
-            other._blocking      = true;
-            other._start_t       = other::time::DateTime::Zero;
-            other._close_t       = other::time::DateTime::Zero;
-            other._bytesSent     = 0;
+            other._handle    = INVALID_SOCKET;
+            other._family    = 0;
+            other._type      = 0;
+            other._protocol  = 0;
+            other._blocking  = true;
+            other._start_t   = other::time::DateTime::Zero;
+            other._close_t   = other::time::DateTime::Zero;
+            other._bytesSent = 0;
             other._bytesRecv = 0;
         }
         return *this;
@@ -224,7 +224,10 @@ namespace other::net::sockets
     bool Socket::Close(int timeout) noexcept
     {
         if (IsClosed())
+        {
+            SET_NET_ERROR(SOCK_EBADF);
             return false;
+        }
 
         if (timeout > 0)
         {
@@ -251,7 +254,7 @@ namespace other::net::sockets
     int Socket::AddressFamily() const noexcept     { return _family; }
     socket_t Socket::SockHandle() const noexcept   { return _handle; }
     uint64_t Socket::BytesSent() const noexcept    { return _bytesSent; }
-    uint64_t Socket::BytesRecv() const noexcept{ return _bytesRecv; }
+    uint64_t Socket::BytesRecv() const noexcept    { return _bytesRecv; }
     void Socket::ResetStats() noexcept             { _bytesSent = 0; _bytesRecv = 0; }
 
     // Запрашивает и очищает отложенный код ошибки сокета из ядра ОС (опция SO_ERROR).
@@ -267,7 +270,25 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
+
         return err;
+    }
+
+    // Запрашивает у ядра ОС состояние опции SO_ACCEPTCONN (находится ли сокет в режиме listen).
+    int Socket::SockAccept() const noexcept
+    {
+        if (!IsCreated())
+            return -1;
+
+        int acc = 0;
+        socklen_t len = sizeof(acc);
+        if (::getsockopt(_handle, SOL_SOCKET, SO_ACCEPTCONN, reinterpret_cast<char*>(&acc), &len) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return -1;
+        }
+
+        return acc;
     }
 
     // Возвращает локальный порт, на который привязан сокет (в порядке байтов процессора).
@@ -280,17 +301,17 @@ namespace other::net::sockets
         socklen_t addrlen = sizeof(addr);
         if (::getsockname(_handle, reinterpret_cast<sockaddr*>(&addr), &addrlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "LocalPort: getsockname error.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
 
         if (addr.ss_family == AF_INET)
             return ntohs(reinterpret_cast<const sockaddr_in*>(&addr)->sin_port);
+
         if (addr.ss_family == AF_INET6)
             return ntohs(reinterpret_cast<const sockaddr_in6*>(&addr)->sin6_port);
 
         SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-        CheckSocketError(SOCKET_ERROR, "LocalPort: unknown socket family.");
         return -1;
     }
 
@@ -304,20 +325,17 @@ namespace other::net::sockets
         socklen_t addrLen = sizeof(peerAddr);
         if (::getpeername(_handle, reinterpret_cast<sockaddr*>(&peerAddr), &addrLen) == SOCKET_ERROR)
         {
-            int error = GET_NET_ERROR();
-            // Не засоряем stderr, если сокет просто ещё не подключён.
-            if (error != SOCK_ENOTCONN)
-                CheckSocketError(SOCKET_ERROR, "RemotePort: getpeername error.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
 
         if (peerAddr.ss_family == AF_INET)
             return ntohs(reinterpret_cast<const sockaddr_in*>(&peerAddr)->sin_port);
+
         if (peerAddr.ss_family == AF_INET6)
             return ntohs(reinterpret_cast<const sockaddr_in6*>(&peerAddr)->sin6_port);
 
         SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-        CheckSocketError(SOCKET_ERROR, "RemotePort: unknown socket family.");
         return -1;
     }
 
@@ -337,9 +355,11 @@ namespace other::net::sockets
 
         if (addr.ss_family == AF_INET)
             return reinterpret_cast<const sockaddr_in*>(&addr)->sin_port != 0;
+
         if (addr.ss_family == AF_INET6)
             return reinterpret_cast<const sockaddr_in6*>(&addr)->sin6_port != 0;
 
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
         return false;
     }
 
@@ -378,6 +398,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return Socket();
         }
+
         return Socket(accepted);
     }
 
@@ -402,7 +423,7 @@ namespace other::net::sockets
 
             if (::bind(_handle, reinterpret_cast<const sockaddr*>(&service), sizeof(service)) == SOCKET_ERROR)
             {
-                CheckSocketError(SOCKET_ERROR, "Bind IPv4 failed.");
+                SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
         }
@@ -415,14 +436,13 @@ namespace other::net::sockets
 
             if (::bind(_handle, reinterpret_cast<const sockaddr*>(&service), sizeof(service)) == SOCKET_ERROR)
             {
-                CheckSocketError(SOCKET_ERROR, "Bind IPv6/DualStack failed.");
+                SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
         }
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "Bind: unknown socket family.");
             return false;
         }
 
@@ -485,6 +505,7 @@ namespace other::net::sockets
 
         if (!success)
             SET_NET_ERROR(lastErr);
+
         return success;
     }
 
@@ -576,14 +597,20 @@ namespace other::net::sockets
         int timeoutMs = 0;
         int optlen = sizeof(int);
         if (::getsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<char*>(&timeoutMs), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
 
         return (timeoutMs == 0) ? -1 : timeoutMs;
 #else
         timeval tv = {};
         socklen_t optlen = sizeof(tv);
         if (::getsockopt(_handle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<char*>(&tv), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
 
         if (tv.tv_sec == 0 && tv.tv_usec == 0)
             return -1;
@@ -604,14 +631,20 @@ namespace other::net::sockets
         int timeoutMs = 0;
         int optlen = sizeof(int);
         if (::getsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&timeoutMs), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
 
         return (timeoutMs == 0) ? -1 : timeoutMs;
 #else
         timeval tv = {};
         socklen_t optlen = sizeof(tv);
         if (::getsockopt(_handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char*>(&tv), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
 
         if (tv.tv_sec == 0 && tv.tv_usec == 0)
             return -1;
@@ -634,7 +667,13 @@ namespace other::net::sockets
         }
 
         socklen_t optlen = sizeof(int);
-        return (::setsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR) ? 0 : -1;
+        if (::setsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&size), optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return -1;
+        }
+
+        return 0;
     }
 
     // Задаёт размер системного буфера приёма ядра ОС (SO_RCVBUF).
@@ -650,7 +689,13 @@ namespace other::net::sockets
         }
 
         socklen_t optlen = sizeof(int);
-        return (::setsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&size), optlen) != SOCKET_ERROR) ? 0 : -1;
+        if (::setsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&size), optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return -1;
+        }
+
+        return 0;
     }
 
     // Возвращает фактический размер системного буфера отправки ядра ОС (SO_SNDBUF).
@@ -663,7 +708,7 @@ namespace other::net::sockets
         socklen_t optlen = sizeof(bufferSize);
         if (::getsockopt(_handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&bufferSize), &optlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "getsockopt(SO_SNDBUF)");
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
 
@@ -680,7 +725,7 @@ namespace other::net::sockets
         socklen_t optlen = sizeof(bufferSize);
         if (::getsockopt(_handle, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char*>(&bufferSize), &optlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "getsockopt(SO_RCVBUF)");
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
 
@@ -697,7 +742,8 @@ namespace other::net::sockets
 #else
         const int how = SHUT_RD;
 #endif
-        CheckSocketError(::shutdown(_handle, how), "shutdown(recv)");
+        if (::shutdown(_handle, how) == SOCKET_ERROR)
+            SET_NET_ERROR(GET_NET_ERROR());
     }
 
     // Запрещает дальнейшую отправку (посылает удалённой стороне TCP FIN).
@@ -710,7 +756,8 @@ namespace other::net::sockets
 #else
         const int how = SHUT_WR;
 #endif
-        CheckSocketError(::shutdown(_handle, how), "shutdown(send)");
+        if (::shutdown(_handle, how) == SOCKET_ERROR)
+            SET_NET_ERROR(GET_NET_ERROR());
     }
 
     // Запрещает и приём, и отправку данных (полное полузакрытие перед Close).
@@ -723,7 +770,8 @@ namespace other::net::sockets
 #else
         const int how = SHUT_RDWR;
 #endif
-        CheckSocketError(::shutdown(_handle, how), "shutdown(both)");
+        if (::shutdown(_handle, how) == SOCKET_ERROR)
+            SET_NET_ERROR(GET_NET_ERROR());
     }
 
     // Проверяет, валиден ли дескриптор сокета (если закрыт — выставляет SOCK_EBADF).
@@ -745,25 +793,36 @@ namespace other::net::sockets
         if (!IsCreated())
             return false;
 
-        // 1. Проверяем, привязан ли сокет к удалённому адресу (peer).
+        // Проверяем, привязан ли сокет к удалённому адресу (peer).
         sockaddr_storage peer = {};
         socklen_t peerLen = sizeof(peer);
         if (::getpeername(_handle, reinterpret_cast<sockaddr*>(&peer), &peerLen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
+        }
 
-        // 2. Мгновенный опрос состояния сокета через poll/WSAPoll (timeout = 0).
+        // Мгновенный опрос состояния сокета через poll/WSAPoll (timeout = 0).
         short revents = 0;
         int ret = PollSingle(_handle, POLLIN, 0, revents);
         if (ret < 0)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
+        }
 
         if (ret > 0)
         {
             // Флаги ошибки, обрыва или невалидного дескриптора означают потерю соединения.
             if (revents & (POLLERR | POLLHUP | POLLNVAL))
+            {
+                const int sockErr = SockError();
+                if (sockErr > 0)
+                    SET_NET_ERROR(sockErr);
                 return false;
+            }
 
-            // 3. Для TCP при POLLIN подглядываем 1 байт с MSG_PEEK: возврат 0 означает TCP FIN от пира.
+            // Для TCP при POLLIN подглядываем 1 байт с MSG_PEEK: возврат 0 означает TCP FIN от пира.
             // (Для UDP 0-байтная датаграмма валидна, поэтому проверка n == 0 применяется только к SOCK_STREAM.)
             if (_type == SOCK_STREAM && (revents & POLLIN))
             {
@@ -771,8 +830,14 @@ namespace other::net::sockets
                 int n = static_cast<int>(::recv(_handle, &peekByte, 1, MSG_PEEK));
                 if (n == 0)
                     return false;
-                if (n == SOCKET_ERROR && !IsWouldBlockError(GET_NET_ERROR()))
-                    return false;
+
+                if (n == SOCKET_ERROR)
+                {
+                    const int err = GET_NET_ERROR();
+                    SET_NET_ERROR(err);
+                    if (!IsWouldBlockError(err))
+                        return false;
+                }
             }
         }
 
@@ -788,16 +853,24 @@ namespace other::net::sockets
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         u_long available = 0;
         int ret = ::ioctlsocket(_handle, FIONREAD, &available);
-        if (CheckSocketError(ret, "ioctlsocket(FIONREAD).") == -1)
+        if (ret == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
+
         // Защита от переполнения u_long -> int на 32/64-битных платформах.
         constexpr int maxInt = std::numeric_limits<int>::max();
         return static_cast<int>(available > maxInt ? maxInt : available);
 #else
         int available = 0;
         int ret = ::ioctl(_handle, FIONREAD, &available);
-        if (CheckSocketError(ret, "ioctl(FIONREAD).") == -1)
+        if (ret == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
+        }
+
         return available;
 #endif
     }
@@ -812,30 +885,44 @@ namespace other::net::sockets
         socklen_t addrlen = sizeof(addr);
         if (::getsockname(_handle, reinterpret_cast<sockaddr*>(&addr), &addrlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "LocalAddress: getsockname.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return "";
         }
 
         if (addrlen == 0)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
             return "";
+        }
 
         if (addr.ss_family == AF_INET)
         {
             const sockaddr_in* ipv4Addr = reinterpret_cast<const sockaddr_in*>(&addr);
             char ipStr[INET_ADDRSTRLEN] = {};
+
             if (::inet_ntop(AF_INET, &(ipv4Addr->sin_addr), ipStr, INET_ADDRSTRLEN) == nullptr)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
                 return "";
+            }
+
             return includePort ? (std::string(ipStr) + ":" + std::to_string(ntohs(ipv4Addr->sin_port))) : std::string(ipStr);
         }
         else if (addr.ss_family == AF_INET6)
         {
             const sockaddr_in6* ipv6Addr = reinterpret_cast<const sockaddr_in6*>(&addr);
             char ipStr[INET6_ADDRSTRLEN] = {};
+
             if (::inet_ntop(AF_INET6, &(ipv6Addr->sin6_addr), ipStr, INET6_ADDRSTRLEN) == nullptr)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
                 return "";
+            }
+
             return includePort ? ("[" + std::string(ipStr) + "]:" + std::to_string(ntohs(ipv6Addr->sin6_port))) : ("[" + std::string(ipStr) + "]");
         }
 
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
         return "";
     }
 
@@ -849,30 +936,44 @@ namespace other::net::sockets
         socklen_t addrlen = sizeof(addr);
         if (::getpeername(_handle, reinterpret_cast<sockaddr*>(&addr), &addrlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "RemoteAddress: getpeername.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return "";
         }
 
         if (addrlen == 0)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
             return "";
+        }
 
         if (addr.ss_family == AF_INET)
         {
             const sockaddr_in* ipv4Addr = reinterpret_cast<const sockaddr_in*>(&addr);
             char ipStr[INET_ADDRSTRLEN] = {};
+
             if (::inet_ntop(AF_INET, &(ipv4Addr->sin_addr), ipStr, INET_ADDRSTRLEN) == nullptr)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
                 return "";
+            }
+
             return includePort ? (std::string(ipStr) + ":" + std::to_string(ntohs(ipv4Addr->sin_port))) : std::string(ipStr);
         }
         else if (addr.ss_family == AF_INET6)
         {
             const sockaddr_in6* ipv6Addr = reinterpret_cast<const sockaddr_in6*>(&addr);
             char ipStr[INET6_ADDRSTRLEN] = {};
+
             if (::inet_ntop(AF_INET6, &(ipv6Addr->sin6_addr), ipStr, INET6_ADDRSTRLEN) == nullptr)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
                 return "";
+            }
+
             return includePort ? ("[" + std::string(ipStr) + "]:" + std::to_string(ntohs(ipv6Addr->sin6_port))) : ("[" + std::string(ipStr) + "]");
         }
 
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
         return "";
     }
 
@@ -889,9 +990,10 @@ namespace other::net::sockets
         int optVal = enable ? 1 : 0;
         if (::setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&optVal), sizeof(optVal)) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "setsockopt(SO_REUSEADDR).");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return true;
     }
 
@@ -905,9 +1007,10 @@ namespace other::net::sockets
         socklen_t optlen = sizeof(optval);
         if (::getsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "getsockopt(SO_REUSEADDR).");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval != 0;
     }
 
@@ -936,9 +1039,10 @@ namespace other::net::sockets
         socklen_t optionLen = sizeof(optionValue);
         if (::getsockopt(_handle, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char*>(&optionValue), &optionLen) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "getsockopt(SO_KEEPALIVE).");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optionValue != 0;
     }
 
@@ -950,6 +1054,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EBADF);
             return false;
         }
+
         // Защита от самопривязки: не закрываем дескриптор, которым уже владеем.
         if (handle == _handle)
             return true;
@@ -961,16 +1066,16 @@ namespace other::net::sockets
     // Отвязывает системный дескриптор от объекта, НЕ закрывая его, и сбрасывает все поля.
     socket_t Socket::Detach() noexcept
     {
-        socket_t temp  = _handle;
-        _handle        = INVALID_SOCKET;
-        _family        = 0;
-        _type          = 0;
-        _protocol      = 0;
-        _blocking      = true;
-        _start_t       = other::time::DateTime::Zero;
-        _close_t       = other::time::DateTime::Zero;
-        _bytesSent     = 0;
-        _bytesRecv = 0;
+        socket_t temp   = _handle;
+        _handle         = INVALID_SOCKET;
+        _family         = 0;
+        _type           = 0;
+        _protocol       = 0;
+        _blocking       = true;
+        _start_t        = other::time::DateTime::Zero;
+        _close_t        = other::time::DateTime::Zero;
+        _bytesSent      = 0;
+        _bytesRecv      = 0;
         return temp;
     }
 
@@ -985,7 +1090,7 @@ namespace other::net::sockets
         u_long mode = enable ? 0 : 1;
         if (::ioctlsocket(_handle, FIONBIO, &mode) == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "ioctlsocket(FIONBIO) failed.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
 #else
@@ -993,7 +1098,7 @@ namespace other::net::sockets
         int flags = ::fcntl(_handle, F_GETFL, 0);
         if (flags == -1)
         {
-            CheckSocketError(SOCKET_ERROR, "fcntl(F_GETFL) failed.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
 
@@ -1004,7 +1109,7 @@ namespace other::net::sockets
 
         if (::fcntl(_handle, F_SETFL, flags) == -1)
         {
-            CheckSocketError(SOCKET_ERROR, "fcntl(F_SETFL) failed.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
 #endif
@@ -1023,7 +1128,11 @@ namespace other::net::sockets
 #else
         int flags = ::fcntl(_handle, F_GETFL, 0);
         if (flags == -1)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
             return _blocking;
+        }
+
         return (flags & O_NONBLOCK) == 0;
 #endif
     }
@@ -1048,6 +1157,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
+
         return 0;
     }
 
@@ -1074,7 +1184,11 @@ namespace other::net::sockets
     Socket Socket::SockClone() const noexcept
     {
         if (IsClosed())
+        {
+            SET_NET_ERROR(SOCK_EBADF);
             return Socket();
+        }
+
         return Socket(_family, _type, _protocol);
     }
 
@@ -1100,14 +1214,14 @@ namespace other::net::sockets
     {
         bool result = Close();
 
-        _family        = 0;
-        _type          = 0;
-        _protocol      = 0;
-        _start_t       = other::time::DateTime::Zero;
-        _close_t       = other::time::DateTime::Zero;
-        _blocking      = true;
-        _handle        = INVALID_SOCKET;
-        _bytesSent     = 0;
+        _family    = 0;
+        _type      = 0;
+        _protocol  = 0;
+        _start_t   = other::time::DateTime::Zero;
+        _close_t   = other::time::DateTime::Zero;
+        _blocking  = true;
+        _handle    = INVALID_SOCKET;
+        _bytesSent = 0;
         _bytesRecv = 0;
 
         return result || IsClosed();
@@ -1116,8 +1230,14 @@ namespace other::net::sockets
     // Включает/выключает режим Dual-Stack на IPv6-сокете (IPV6_V6ONLY = 0 разрешает IPv4+IPv6).
     bool Socket::SetDualMode(bool enable) noexcept
     {
-        if (!IsCreated() || _family != AF_INET6)
+        if (!IsCreated())
             return false;
+
+        if (_family != AF_INET6)
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return false;
+        }
 
         int optval = enable ? 0 : 1;
         if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
@@ -1125,14 +1245,21 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return true;
     }
 
     // Проверяет, включён ли режим Dual-Stack на IPv6-сокете.
     bool Socket::IsDualMode() const noexcept
     {
-        if (!IsCreated() || _family != AF_INET6)
+        if (!IsCreated())
             return false;
+
+        if (_family != AF_INET6)
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return false;
+        }
 
         int optval = 0;
         socklen_t optlen = sizeof(optval);
@@ -1141,12 +1268,481 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval == 0;
     }
 
-    // =========================================================================
-    // КЛИЕНТСКОЕ ПОДКЛЮЧЕНИЕ (CONNECT / DISCONNECT)
-    // =========================================================================
+    // Настраивает тонкие параметры TCP Keep-Alive.
+    bool Socket::SetKeepAliveOptions(int idleSec, int intervalSec, int retryCount) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (idleSec <= 0 || intervalSec <= 0 || retryCount <= 0)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
+            return false;
+        }
+
+        const int idleVal     = ToPlatformKeepAliveInterval(idleSec);
+        const int intervalVal = ToPlatformKeepAliveInterval(intervalSec);
+        if (idleVal <= 0 || intervalVal <= 0)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
+            return false;
+        }
+
+        auto setOpt = [this](int optName, int val) noexcept -> bool
+        {
+            return ::setsockopt(_handle, IPPROTO_TCP, optName, reinterpret_cast<const char*>(&val), sizeof(val)) != SOCKET_ERROR;
+        };
+
+        if (!setOpt(TCP_KEEPIDLE, idleVal) || !setOpt(TCP_KEEPINTVL, intervalVal) || !setOpt(TCP_KEEPCNT, retryCount))
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
+    }
+
+    // Читает текущие параметры TCP Keep-Alive.
+    bool Socket::GetKeepAliveOptions(int& idleSec, int& intervalSec, int& retryCount) const noexcept
+    {
+        idleSec     = 0;
+        intervalSec = 0;
+        retryCount  = 0;
+
+        if (!IsCreated())
+            return false;
+
+        auto getOpt = [this](int optName, int& outVal) noexcept -> bool
+        {
+            socklen_t len = sizeof(outVal);
+            return ::getsockopt(_handle, IPPROTO_TCP, optName, reinterpret_cast<char*>(&outVal), &len) != SOCKET_ERROR;
+        };
+
+        int rawIdle     = 0;
+        int rawInterval = 0;
+        int rawCount    = 0;
+
+        if (!getOpt(TCP_KEEPIDLE, rawIdle) || !getOpt(TCP_KEEPINTVL, rawInterval) || !getOpt(TCP_KEEPCNT, rawCount))
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        idleSec     = FromPlatformKeepAliveInterval(rawIdle);
+        intervalSec = FromPlatformKeepAliveInterval(rawInterval);
+        retryCount  = rawCount;
+        return true;
+    }
+
+    // Задаёт TTL / Hop Limit для исходящих multicast-пакетов.
+    bool Socket::SetMulticastTtl(int ttl) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (ttl < 0 || ttl > 255)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
+            return false;
+        }
+
+        int optval = ttl;
+        int result = SOCKET_ERROR;
+
+        if (_family == AF_INET)
+            result = ::setsockopt(_handle, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&optval), sizeof(optval));
+        else if (_family == AF_INET6)
+            result = ::setsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, reinterpret_cast<const char*>(&optval), sizeof(optval));
+        else
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return false;
+        }
+
+        if (result == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
+    }
+
+    // Возвращает TTL / Hop Limit для исходящих multicast-пакетов.
+    int Socket::GetMulticastTtl() const noexcept
+    {
+        if (!IsCreated())
+            return -1;
+
+        int optval = 0;
+        socklen_t optlen = sizeof(optval);
+        int result = SOCKET_ERROR;
+
+        if (_family == AF_INET)
+            result = ::getsockopt(_handle, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<char*>(&optval), &optlen);
+        else if (_family == AF_INET6)
+            result = ::getsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, reinterpret_cast<char*>(&optval), &optlen);
+        else
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return -1;
+        }
+
+        if (result == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return -1;
+        }
+
+        return optval;
+    }
+
+    // Задаёт исходящий сетевой интерфейс для multicast (IP_MULTICAST_IF / IPV6_MULTICAST_IF).
+    bool Socket::SetMulticastInterface(const std::string& interfaceAddress) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (_family == AF_INET)
+        {
+            in_addr addr = {};
+            if (interfaceAddress.empty())
+            {
+                addr.s_addr = htonl(INADDR_ANY);
+            }
+            else if (::inet_pton(AF_INET, interfaceAddress.c_str(), &addr) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IP, IP_MULTICAST_IF, reinterpret_cast<const char*>(&addr), sizeof(addr)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+        else if (_family == AF_INET6)
+        {
+            unsigned int ifIndex = 0;
+            if (!interfaceAddress.empty())
+            {
+                try
+                {
+                    ifIndex = static_cast<unsigned int>(std::stoul(interfaceAddress));
+                }
+                catch (...)
+                {
+                    SET_NET_ERROR(SOCK_EINVAL);
+                    return false;
+                }
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_IF, reinterpret_cast<const char*>(&ifIndex), sizeof(ifIndex)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+        return false;
+    }
+
+    // Подписывает сокет на multicast-группу с явным указанием интерфейса/индекса.
+    bool Socket::JoinMulticastGroup(const std::string& multicastAddress, const std::string& interfaceAddress) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (_family == AF_INET)
+        {
+            ip_mreq mreq = {};
+            if (::inet_pton(AF_INET, multicastAddress.c_str(), &mreq.imr_multiaddr) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (interfaceAddress.empty())
+            {
+                mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+            }
+            else if (::inet_pton(AF_INET, interfaceAddress.c_str(), &mreq.imr_interface) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+        else if (_family == AF_INET6)
+        {
+            ipv6_mreq mreq = {};
+            if (::inet_pton(AF_INET6, multicastAddress.c_str(), &mreq.ipv6mr_multiaddr) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (!interfaceAddress.empty())
+            {
+                try
+                {
+                    mreq.ipv6mr_interface = static_cast<unsigned int>(std::stoul(interfaceAddress));
+                }
+                catch (...)
+                {
+                    SET_NET_ERROR(SOCK_EINVAL);
+                    return false;
+                }
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_JOIN_GROUP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+        return false;
+    }
+
+    // Отписывает сокет от multicast-группы с явным указанием интерфейса/индекса.
+    bool Socket::LeaveMulticastGroup(const std::string& multicastAddress, const std::string& interfaceAddress) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (_family == AF_INET)
+        {
+            ip_mreq mreq = {};
+            if (::inet_pton(AF_INET, multicastAddress.c_str(), &mreq.imr_multiaddr) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (interfaceAddress.empty())
+            {
+                mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+            }
+            else if (::inet_pton(AF_INET, interfaceAddress.c_str(), &mreq.imr_interface) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IP, IP_DROP_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+        else if (_family == AF_INET6)
+        {
+            ipv6_mreq mreq = {};
+            if (::inet_pton(AF_INET6, multicastAddress.c_str(), &mreq.ipv6mr_multiaddr) != 1)
+            {
+                SET_NET_ERROR(SOCK_EINVAL);
+                return false;
+            }
+
+            if (!interfaceAddress.empty())
+            {
+                try
+                {
+                    mreq.ipv6mr_interface = static_cast<unsigned int>(std::stoul(interfaceAddress));
+                }
+                catch (...)
+                {
+                    SET_NET_ERROR(SOCK_EINVAL);
+                    return false;
+                }
+            }
+
+            if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_LEAVE_GROUP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
+            {
+                SET_NET_ERROR(GET_NET_ERROR());
+                return false;
+            }
+
+            return true;
+        }
+
+        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+        return false;
+    }
+
+    // Задаёт TOS / DSCP (IP_TOS / IPV6_TCLASS).
+    bool Socket::SetTypeOfService(int tos) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+        if (tos < 0 || tos > 255)
+        {
+            SET_NET_ERROR(SOCK_EINVAL);
+            return false;
+        }
+
+        int optval = tos;
+        int result = SOCKET_ERROR;
+
+        if (_family == AF_INET)
+            result = ::setsockopt(_handle, IPPROTO_IP, IP_TOS, reinterpret_cast<const char*>(&optval), sizeof(optval));
+        else if (_family == AF_INET6)
+            result = ::setsockopt(_handle, IPPROTO_IPV6, IPV6_TCLASS, reinterpret_cast<const char*>(&optval), sizeof(optval));
+        else
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return false;
+        }
+
+        if (result == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
+    }
+
+    // Читает TOS / DSCP (IP_TOS / IPV6_TCLASS).
+    int Socket::GetTypeOfService() const noexcept
+    {
+        if (!IsCreated())
+            return -1;
+
+        int optval = 0;
+        socklen_t optlen = sizeof(optval);
+        int result = SOCKET_ERROR;
+
+        if (_family == AF_INET)
+            result = ::getsockopt(_handle, IPPROTO_IP, IP_TOS, reinterpret_cast<char*>(&optval), &optlen);
+        else if (_family == AF_INET6)
+            result = ::getsockopt(_handle, IPPROTO_IPV6, IPV6_TCLASS, reinterpret_cast<char*>(&optval), &optlen);
+        else
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return -1;
+        }
+
+        if (result == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return -1;
+        }
+
+        return optval & 0xFF;
+    }
+
+    // Включает/выключает SO_REUSEPORT (на Linux).
+    bool Socket::SetReusePort(bool enable) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        LIBOTHER_UNUSED(enable);
+        SET_NET_ERROR(SOCK_ENOPROTOOPT);
+        return false;
+#else
+        int optval = enable ? 1 : 0;
+        if (::setsockopt(_handle, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
+    // Проверяет SO_REUSEPORT.
+    bool Socket::IsReusePort() const noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        SET_NET_ERROR(SOCK_ENOPROTOOPT);
+        return false;
+#else
+        int optval = 0;
+        socklen_t optlen = sizeof(optval);
+        if (::getsockopt(_handle, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return optval != 0;
+#endif
+    }
+
+    // Включает/выключает TCP_QUICKACK (на Linux).
+    bool Socket::SetQuickAck(bool enable) noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        LIBOTHER_UNUSED(enable);
+        SET_NET_ERROR(SOCK_ENOPROTOOPT);
+        return false;
+#else
+        int optval = enable ? 1 : 0;
+        if (::setsockopt(_handle, IPPROTO_TCP, TCP_QUICKACK, reinterpret_cast<const char*>(&optval), sizeof(optval)) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
+    // Проверяет TCP_QUICKACK.
+    bool Socket::IsQuickAck() const noexcept
+    {
+        if (!IsCreated())
+            return false;
+
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        SET_NET_ERROR(SOCK_ENOPROTOOPT);
+        return false;
+#else
+        int optval = 0;
+        socklen_t optlen = sizeof(optval);
+        if (::getsockopt(_handle, IPPROTO_TCP, TCP_QUICKACK, reinterpret_cast<char*>(&optval), &optlen) == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return optval != 0;
+#endif
+    }
 
     // Блокирующее подключение к удалённому хосту (IP или доменное имя) и порту.
     bool Socket::Connect(const std::string& host, int port)
@@ -1193,6 +1789,7 @@ namespace other::net::sockets
                 success = true;
                 break;
             }
+
             lastErr = GET_NET_ERROR();
         }
 
@@ -1201,9 +1798,9 @@ namespace other::net::sockets
         if (!success)
         {
             SET_NET_ERROR(lastErr);
-            CheckSocketError(SOCKET_ERROR, "Connect failed: unable to connect to any resolved address.");
             return false;
         }
+
         return true;
     }
 
@@ -1288,8 +1885,8 @@ namespace other::net::sockets
                     lastErr = SOCK_ETIMEDOUT;
                     break;
                 }
-                remainingMs = static_cast<long>(
-                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count());
+
+                remainingMs = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count());
             }
 
             // Ждём завершения TCP-рукопожатия через poll/WSAPoll (готовность к записи POLLOUT).
@@ -1304,6 +1901,7 @@ namespace other::net::sockets
                     success = true;
                     break;
                 }
+
                 lastErr = (sockErr > 0) ? sockErr : SOCK_ECONNREFUSED;
             }
             else if (pollRes == 0)
@@ -1352,16 +1950,19 @@ namespace other::net::sockets
             {
                 if (!fnDisconnectEx(_handle, nullptr, TF_REUSE_SOCKET, 0))
                 {
+                    SET_NET_ERROR(GET_NET_ERROR());
                     Close();
                     return false;
                 }
                 return true;
             }
+            SET_NET_ERROR(GET_NET_ERROR());
             Close();
             return false;
 #else
             // На Linux TCP-сокет нельзя переиспользовать без закрытия.
             Close();
+            SET_NET_ERROR(SOCK_ENOTSUP);
             return false;
 #endif
         }
@@ -1369,10 +1970,6 @@ namespace other::net::sockets
         Close();
         return true;
     }
-
-    // =========================================================================
-    // ДОПОЛНИТЕЛЬНЫЕ СЕТЕВЫЕ ОПЦИИ (NODELAY, TTL, DF, MULTICAST, BROADCAST)
-    // =========================================================================
 
     // Проверяет, включён ли TCP_NODELAY (отключение алгоритма Нейгла).
     bool Socket::IsNoDelay() const noexcept
@@ -1387,6 +1984,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval != 0;
     }
 
@@ -1402,6 +2000,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return true;
     }
 
@@ -1433,7 +2032,6 @@ namespace other::net::sockets
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "GetTtl: unknown socket family.");
             return -1;
         }
 
@@ -1473,7 +2071,6 @@ namespace other::net::sockets
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "SetTtl: unknown socket family.");
             return false;
         }
 
@@ -1503,6 +2100,7 @@ namespace other::net::sockets
                 SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
+
             return (optval == IP_PMTUDISC_DO || optval == IP_PMTUDISC_PROBE);
 #endif
         }
@@ -1517,7 +2115,6 @@ namespace other::net::sockets
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "IsDontFragment: unknown socket family.");
             return false;
         }
 
@@ -1560,7 +2157,6 @@ namespace other::net::sockets
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "SetDontFragment: unknown socket family.");
             return false;
         }
 
@@ -1584,7 +2180,6 @@ namespace other::net::sockets
         else
         {
             SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-            CheckSocketError(SOCKET_ERROR, "IsMulticastLoopback: unknown socket family.");
             return false;
         }
 
@@ -1593,6 +2188,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval != 0;
     }
 
@@ -1602,15 +2198,26 @@ namespace other::net::sockets
         if (!IsCreated())
             return false;
 
-        int value = enable ? 1 : 0;
-        if (_family == AF_INET)
-            return ::setsockopt(_handle, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&value), sizeof(value)) != SOCKET_ERROR;
-        else if (_family == AF_INET6)
-            return ::setsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<const char*>(&value), sizeof(value)) != SOCKET_ERROR;
+        int value  = enable ? 1 : 0;
+        int result = SOCKET_ERROR;
 
-        SET_NET_ERROR(SOCK_EAFNOSUPPORT);
-        CheckSocketError(SOCKET_ERROR, "SetMulticastLoopback: unknown socket family.");
-        return false;
+        if (_family == AF_INET)
+            result = ::setsockopt(_handle, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&value), sizeof(value));
+        else if (_family == AF_INET6)
+            result = ::setsockopt(_handle, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, reinterpret_cast<const char*>(&value), sizeof(value));
+        else
+        {
+            SET_NET_ERROR(SOCK_EAFNOSUPPORT);
+            return false;
+        }
+
+        if (result == SOCKET_ERROR)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
+        return true;
     }
 
     // Подписывает UDP-сокет на multicast-группу (IPv4 или IPv6).
@@ -1627,12 +2234,14 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EINVAL);
                 return false;
             }
+
             mreq.imr_interface.s_addr = htonl(INADDR_ANY);
             if (::setsockopt(_handle, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
             {
                 SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
+
             return true;
         }
         else if (_family == AF_INET6)
@@ -1643,12 +2252,14 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EINVAL);
                 return false;
             }
+
             mreq.ipv6mr_interface = 0;
             if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_JOIN_GROUP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
             {
                 SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
+
             return true;
         }
 
@@ -1670,12 +2281,14 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EINVAL);
                 return false;
             }
+
             mreq.imr_interface.s_addr = htonl(INADDR_ANY);
             if (::setsockopt(_handle, IPPROTO_IP, IP_DROP_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
             {
                 SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
+
             return true;
         }
         else if (_family == AF_INET6)
@@ -1686,12 +2299,14 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EINVAL);
                 return false;
             }
+
             mreq.ipv6mr_interface = 0;
             if (::setsockopt(_handle, IPPROTO_IPV6, IPV6_LEAVE_GROUP, reinterpret_cast<const char*>(&mreq), sizeof(mreq)) == SOCKET_ERROR)
             {
                 SET_NET_ERROR(GET_NET_ERROR());
                 return false;
             }
+
             return true;
         }
 
@@ -1711,6 +2326,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return true;
     }
 
@@ -1727,6 +2343,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval != 0;
     }
 
@@ -1743,6 +2360,7 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return true;
 #else
         LIBOTHER_UNUSED(exclusive);
@@ -1751,7 +2369,7 @@ namespace other::net::sockets
 #endif
     }
 
-    // Проверяет состояние SO_EXCLUSIVEADDRUSE (на Linux всегда false).
+    // Проверяет состояние SO_EXCLUSIVEADDRUSE (на Linux выставляет SOCK_ENOPROTOOPT и возвращает false).
     bool Socket::IsExclusiveAddressUse() const noexcept
     {
         if (!IsCreated())
@@ -1765,15 +2383,13 @@ namespace other::net::sockets
             SET_NET_ERROR(GET_NET_ERROR());
             return false;
         }
+
         return optval != 0;
 #else
+        SET_NET_ERROR(SOCK_ENOPROTOOPT);
         return false;
 #endif
     }
-
-    // =========================================================================
-    // ОТПРАВКА И ПРИЁМ ДАННЫХ (TCP И UDP)
-    // =========================================================================
 
     // Отправляет порцию данных через подключённый сокет и учитывает отправленные байты в _bytesSent.
     int Socket::Send(const char* data, int size, int flags)
@@ -1792,17 +2408,15 @@ namespace other::net::sockets
         if (result == SOCKET_ERROR)
         {
             int error = GET_NET_ERROR();
+
             // Для неблокирующего сокета переполненный буфер отправки — штатная ситуация, возвращаем 0.
             if (IsWouldBlockError(error))
             {
                 SET_NET_ERROR(SOCK_EWOULDBLOCK);
                 return 0;
             }
-            // Прерывание сигналом на Linux не логируем как критический сбой.
-            if (error == SOCK_EINTR)
-                return -1;
 
-            CheckSocketError(SOCKET_ERROR, "send socket error");
+            SET_NET_ERROR(error);
             return -1;
         }
 
@@ -1820,6 +2434,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return -1;
         }
+
         return Send(data + offset, size, flags);
     }
 
@@ -1844,8 +2459,10 @@ namespace other::net::sockets
                 // На Linux повторяем отправку, если системный вызов прерван сигналом ОС.
                 if (GET_NET_ERROR() == SOCK_EINTR)
                     continue;
+
                 return false;
             }
+
             if (bytes == 0)
                 return false;
 
@@ -1862,6 +2479,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return false;
         }
+
         return SendAll(data + offset, size, flags);
     }
 
@@ -1894,7 +2512,6 @@ namespace other::net::sockets
         if (gaiErr != 0)
         {
             SaveAddrInfoError(gaiErr);
-            CheckSocketError(SOCKET_ERROR, "SendTo failed: getaddrinfo resolution error.");
             return -1;
         }
 
@@ -1908,8 +2525,7 @@ namespace other::net::sockets
             if (!PrepareTargetAddress(_family, dualMode, ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen), targetAddr, targetLen))
                 continue;
 
-            bytesSent = static_cast<int>(::sendto(_handle, data, size, ApplyNoSignalFlag(flags),
-                                                  reinterpret_cast<const sockaddr*>(&targetAddr), targetLen));
+            bytesSent = static_cast<int>(::sendto(_handle, data, size, ApplyNoSignalFlag(flags), reinterpret_cast<const sockaddr*>(&targetAddr), targetLen));
             if (bytesSent != SOCKET_ERROR)
                 break;
 
@@ -1927,9 +2543,8 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EWOULDBLOCK);
                 return -1;
             }
+
             SET_NET_ERROR(lastErr);
-            if (lastErr != SOCK_EINTR)
-                CheckSocketError(SOCKET_ERROR, "sendto failed");
             return -1;
         }
 
@@ -1947,6 +2562,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return -1;
         }
+
         return SendTo(data + offset, size, toHost, port, flags);
     }
 
@@ -1973,10 +2589,8 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EWOULDBLOCK);
                 return -1;
             }
-            if (error == SOCK_EINTR)
-                return -1;
 
-            CheckSocketError(SOCKET_ERROR, "recv error");
+            SET_NET_ERROR(error);
             return -1;
         }
 
@@ -1994,6 +2608,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return -1;
         }
+
         return Recv(data + offset, size, flags);
     }
 
@@ -2021,10 +2636,8 @@ namespace other::net::sockets
                 SET_NET_ERROR(SOCK_EWOULDBLOCK);
                 return -1;
             }
-            if (error == SOCK_EINTR)
-                return -1;
 
-            CheckSocketError(SOCKET_ERROR, "recvfrom error");
+            SET_NET_ERROR(error);
             return -1;
         }
 
@@ -2033,8 +2646,7 @@ namespace other::net::sockets
 
         // Преобразуем IP отправителя в числовую строку без DNS-запросов (NI_NUMERICHOST).
         char hostBuffer[NI_MAXHOST] = {};
-        if (::getnameinfo(reinterpret_cast<sockaddr*>(&clientAddr), addrLen,
-                          hostBuffer, sizeof(hostBuffer), nullptr, 0, NI_NUMERICHOST) == 0)
+        if (::getnameinfo(reinterpret_cast<sockaddr*>(&clientAddr), addrLen, hostBuffer, sizeof(hostBuffer), nullptr, 0, NI_NUMERICHOST) == 0)
         {
             fromHost = hostBuffer;
         }
@@ -2062,6 +2674,7 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return -1;
         }
+
         return RecvFrom(data + offset, size, fromHost, fromPort, flags);
     }
 
@@ -2085,16 +2698,20 @@ namespace other::net::sockets
             {
                 if (GET_NET_ERROR() == SOCK_EINTR)
                     continue;
+
                 return false;
             }
+
             // 0 означает, что собеседник закрыл соединение раньше, чем передал все size байт.
             if (bytes == 0)
             {
                 SET_NET_ERROR(SOCK_ENOTCONN);
                 return false;
             }
+
             totalReceived += bytes;
         }
+
         return true;
     }
 
@@ -2106,12 +2723,9 @@ namespace other::net::sockets
             SET_NET_ERROR(SOCK_EINVAL);
             return false;
         }
+
         return RecvAll(data + offset, size, flags);
     }
-
-    // =========================================================================
-    // ОЖИДАНИЕ СОБЫТИЙ (SELECT / POLL)
-    // =========================================================================
 
     // Отслеживает готовность группы сокетов через ::select(); оставляет в векторах только сработавшие сокеты.
     int Socket::Select(std::vector<Socket*>& readSock, std::vector<Socket*>& writeSock, std::vector<Socket*>& errorSock, long timeoutMs)
@@ -2156,12 +2770,11 @@ namespace other::net::sockets
                         maxDescriptor = h;
                 }
             }
+
             return true;
         };
 
-        if (!addSockets(readSock, readSet) ||
-            !addSockets(writeSock, writeSet) ||
-            !addSockets(errorSock, errorSet))
+        if (!addSockets(readSock, readSet) || !addSockets(writeSock, writeSet) || !addSockets(errorSock, errorSet))
         {
             return -1;
         }
@@ -2199,7 +2812,7 @@ namespace other::net::sockets
 
         if (activity == SOCKET_ERROR)
         {
-            CheckSocketError(SOCKET_ERROR, "Select failed.");
+            SET_NET_ERROR(GET_NET_ERROR());
             return -1;
         }
 
@@ -2237,6 +2850,12 @@ namespace other::net::sockets
 
         short revents = 0;
         int result = PollSingle(_handle, POLLIN, timeoutMs, revents);
+        if (result < 0)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
         return (result > 0 && (revents & (POLLIN | POLLHUP)) != 0);
     }
 
@@ -2248,6 +2867,12 @@ namespace other::net::sockets
 
         short revents = 0;
         int result = PollSingle(_handle, POLLOUT, timeoutMs, revents);
+        if (result < 0)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
         return (result > 0 && (revents & POLLOUT) != 0);
     }
 
@@ -2260,6 +2885,12 @@ namespace other::net::sockets
         // Ошибки (POLLERR/POLLHUP/POLLNVAL) возвращаются в revents автоматически даже при events == 0.
         short revents = 0;
         int result = PollSingle(_handle, 0, timeoutMs, revents);
+        if (result < 0)
+        {
+            SET_NET_ERROR(GET_NET_ERROR());
+            return false;
+        }
+
         return (result > 0 && (revents & (POLLERR | POLLHUP | POLLNVAL)) != 0);
     }
 }

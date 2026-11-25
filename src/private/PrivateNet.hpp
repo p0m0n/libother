@@ -1,7 +1,29 @@
+/**
+ * @file PrivateNet.hpp
+ * @brief Внутренние платформозависимые вспомогательные функции сетевого модуля.
+ *
+ * @details
+ * Этот заголовок предназначен исключительно для внутреннего использования внутри реализации
+ * сетевой библиотеки и не является частью публичного API. Его задача — изолировать низкоуровневые
+ * различия между сетевыми стеками Windows (Winsock2) и Linux (POSIX), чтобы основной код классов
+ * сокетов оставался чистым, читаемым и переносимым.
+ *
+ * В файле сосредоточена служебная логика, обеспечивающая единообразное поведение на обеих платформах:
+ * защита от аварийного завершения процесса при записи в разорванное соединение, распознавание
+ * кодов временной неготовности неблокирующих операций, сохранение ошибок разрешения доменных имён,
+ * преобразование сетевых адресов для режима Dual-Stack (IPv4 поверх IPv6-сокета), устойчивый
+ * к прерыванию сигналами опрос одного дескриптора и перевод временных интервалов Keep-Alive
+ * между секундами и платформенными единицами.
+ *
+ * Все функции объявлены как `inline` и `noexcept` — они не выделяют динамическую память
+ * и не выбрасывают исключений.
+ */
+
 #ifndef LIBOTHER_PRIVATENET_HPP
 #define LIBOTHER_PRIVATENET_HPP
 
 #include "Define.h"
+
 
 namespace other
 {
@@ -9,9 +31,16 @@ namespace other
     {
         namespace sockets
         {
-            // На Linux попытка отправить данные в TCP-сокет, закрытый удалённой стороной, по умолчанию
-            // генерирует сигнал SIGPIPE, аварийно завершающий процесс. Флаг MSG_NOSIGNAL отключает SIGPIPE:
-            // вместо падения ::send() возвращает -1 с ошибкой EPIPE.
+            /**
+             * @brief Дополняет флаги отправки защитой от сигнала `SIGPIPE` на POSIX-платформах.
+             *
+             * На Linux попытка отправить данные в TCP-сокет, закрытый удалённой стороной, по умолчанию
+             * генерирует сигнал `SIGPIPE`, аварийно завершающий процесс. Добавление флага `MSG_NOSIGNAL`
+             * подавляет сигнал, заставляя системный вызов просто вернуть `-1` с ошибкой `EPIPE`.
+             * @param [in] flags Исходная битовая маска флагов для системных вызовов отправки (`::send` / `::sendto`).
+             * @return Модифицированная маска флагов: на Linux с установленным `MSG_NOSIGNAL`; на Windows возвращается без изменений.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
             inline int ApplyNoSignalFlag(int flags) noexcept
             {
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
@@ -21,7 +50,16 @@ namespace other
 #endif
             }
 
-            // Проверяет, означает ли код ошибки временную недоступность ресурса на неблокирующем сокете.
+            /**
+             * @brief Проверяет, обозначает ли системный код ошибки временную неготовность неблокирующего сокета.
+             *
+             * Используется для отделения штатной ситуации «данных пока нет / буфер отправки заполнен»
+             * от реального сетевого сбоя при работе в неблокирующем режиме.
+             * @param [in] err Системный код ошибки, полученный после неудачной операции ввода-вывода.
+             * @return `true`, если код соответствует временной блокировке (`WSAEWOULDBLOCK` на Windows;
+             *         `EWOULDBLOCK` или `EAGAIN` на Linux); `false` для всех остальных кодов ошибок.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
             inline bool IsWouldBlockError(int err) noexcept
             {
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
@@ -31,16 +69,37 @@ namespace other
 #endif
             }
 
-            // Сохраняет код ошибки getaddrinfo() в системный код ошибки потока (GET_NET_ERROR()).
-            // На Linux при EAI_SYSTEM реальный код системной ошибки уже находится в errno.
+            /**
+             * @brief Сохраняет код ошибки разрешения адреса (`::getaddrinfo()`) в состояние ошибок текущего потока.
+             *
+             * При успешном завершении (`gaiErr == 0`) состояние ошибок не изменяется. На Linux при коде
+             * `NET_EAI_SYSTEM` реальная причина системного сбоя уже записана в `errno`, поэтому перезапись
+             * также не выполняется.
+             * @param [in] gaiErr Код возврата системной функции `::getaddrinfo()`.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
             inline void SaveAddrInfoError(int gaiErr) noexcept
             {
                 if (gaiErr != 0 && gaiErr != NET_EAI_SYSTEM)
                     SET_NET_ERROR(gaiErr);
             }
 
-            // Подготавливает бинарную структуру sockaddr для bind/connect/sendto.
-            // Для Dual-Stack IPv6-сокета автоматически конвертирует IPv4-адрес в IPv4-mapped IPv6 (::ffff:x.x.x.x).
+            /**
+             * @brief Подготавливает бинарную структуру сетевого адреса для системных вызовов `bind`, `connect` или `sendto`.
+             *
+             * Если семейство исходного адреса совпадает с семейством сокета, структура копируется напрямую.
+             * Если сокет открыт как IPv6 с включённым режимом Dual-Stack, а исходный адрес является IPv4,
+             * функция автоматически упаковывает его в формат IPv4-mapped IPv6 (`::ffff:a.b.c.d`).
+             * @param [in]  sockFamily Семейство адресов целевого сокета (`AF_INET` или `AF_INET6`).
+             * @param [in]  dualMode   Флаг активности Dual-Stack на IPv6-сокете (`true` разрешает преобразование IPv4 -> IPv6).
+             * @param [in]  srcAddr    Указатель на исходную структуру адреса (не может быть `nullptr`).
+             * @param [in]  srcLen     Длина исходной структуры `srcAddr` в байтах (должна быть `> 0` и не превышать `sizeof(sockaddr_storage)`).
+             * @param [out] outAddr    Выходной буфер, в который записывается подготовленный адрес (предварительно обнуляется).
+             * @param [out] outLen     Выходная фактическая длина подготовленной структуры в `outAddr` в байтах.
+             * @return `true`, если адрес успешно подготовлен и совместим с сокетом;
+             *         `false` при неверных аргументах, переполнении буфера или несовместимых семействах адресов.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
             inline bool PrepareTargetAddress(int sockFamily, bool dualMode, const sockaddr* srcAddr, socklen_t srcLen, sockaddr_storage& outAddr, socklen_t& outLen) noexcept
             {
                 if (srcAddr == nullptr || srcLen <= 0)
@@ -78,7 +137,21 @@ namespace other
                 return false;
             }
 
-            // Опрашивает один дескриптор через poll/WSAPoll с защитой от переполнения long -> int и автоматическим перезапуском при прерывании сигналом (EINTR) на Linux.
+            /**
+             * @brief Опрашивает готовность одного сокета через `poll`/`WSAPoll` с защитой от переполнения таймаута и `EINTR`.
+             *
+             * На Linux автоматически перезапускает ожидание при прерывании системного вызова сигналом (`SOCK_EINTR`),
+             * точно пересчитывая остаток времени до исходного дедлайна по монотонным часам.
+             * @param [in]  handle     Системный дескриптор опрашиваемого сокета.
+             * @param [in]  events     Битовая маска интересующих событий (например `POLLIN`, `POLLOUT` или `0` для проверки только ошибок).
+             * @param [in]  timeoutMs  Максимальное время ожидания в миллисекундах:
+             *                         `< 0` — бесконечное ожидание; `0` — мгновенная проверка без блокировки;
+             *                         `> 0` — ограничение времени (значения больше `INT_MAX` ограничиваются `INT_MAX`).
+             * @param [out] outRevents Битовая маска фактически сработавших событий (обнуляется в начале вызова и заполняется при возврате `> 0`).
+             * @return `> 0`, если на сокете зафиксировано событие; `0`, если истёк таймаут ожидания;
+             *         `-1` при системной ошибке опроса (код доступен через `GET_NET_ERROR()`).
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
             inline int PollSingle(socket_t handle, short events, long timeoutMs, short& outRevents) noexcept
             {
                 outRevents = 0;
@@ -88,7 +161,7 @@ namespace other
                 if (timeoutMs >= 0)
                 {
                     constexpr int maxInt = std::numeric_limits<int>::max();
-                    remainingMs = (timeoutMs > maxInt ? maxInt : timeoutMs);
+                    remainingMs = (timeoutMs > maxInt) ? maxInt : static_cast<int>(timeoutMs);
                 }
 
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
@@ -131,6 +204,44 @@ namespace other
                         remainingMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count());
                     }
                 }
+#endif
+            }
+
+            /**
+             * @brief Переводит интервал TCP Keep-Alive из секунд в единицы измерения текущей ОС для `setsockopt`.
+             *
+             * На Windows переводит секунды в миллисекунды с проверкой на переполнение `int`;
+             * на Linux/POSIX возвращает значение в секундах без изменений.
+             * @param [in] seconds Желаемый интервал в секундах (должен быть `> 0`).
+             * @return Интервал в платформенных единицах (`> 0` при корректном входе) либо `-1` на Windows,
+             *         если умножение на `1000` приводит к переполнению типа `int`.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
+            inline int ToPlatformKeepAliveInterval(int seconds) noexcept
+            {
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+                constexpr int maxSec = std::numeric_limits<int>::max() / 1000;
+                return (seconds > maxSec) ? -1 : (seconds * 1000);
+#else
+                return seconds;
+#endif
+            }
+
+            /**
+             * @brief Переводит интервал TCP Keep-Alive из платформенных единиц `getsockopt` обратно в секунды.
+             *
+             * На Windows выполняет целочисленное деление миллисекунд на `1000`;
+             * на Linux/POSIX возвращает значение в секундах без изменений.
+             * @param [in] rawValue Сырое значение интервала, полученное от операционной системы.
+             * @return Значение интервала в целых секундах.
+             * @note Гарантированно не выбрасывает исключений (`noexcept`).
+             */
+            inline int FromPlatformKeepAliveInterval(int rawValue) noexcept
+            {
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+                return rawValue / 1000;
+#else
+                return rawValue;
 #endif
             }
 

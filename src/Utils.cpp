@@ -10,6 +10,15 @@ namespace other
             result[static_cast<uint8_t>(input[i])] = static_cast<int8_t>(i);
         }
     }
+	
+	// Переключает кодовую страницу консоли на UTF-8 на Windows (на Linux не требуется).
+    void utils::utf8::InitConsoleUtf8() noexcept
+    {
+#if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
+        ::SetConsoleOutputCP(CP_UTF8);
+        ::SetConsoleCP(CP_UTF8);
+#endif
+    }
 
     // Кодирует одну кодовую точку Unicode (UTF-32) в 1..4 байта UTF-8 и дописывает в out.
     bool utils::utf8::Utf8EncodeCodePoint(char32_t codePoint, std::string& out)

@@ -15,16 +15,14 @@ public:
     // Этот метод будет вызван ФОНОВЫМ потоком контроллера
     void callAfterTimeout() override 
     {
-        std::cout << "\n[ТАЙМЕР СРАБОТАЛ]: " << _message << std::endl;
-        std::cout << "[ПОТОК]: ID фонового потока = " << std::this_thread::get_id() << std::endl;
+        std::cout << "\n[THE TIMER WENT OFF]: " << _message << std::endl;
+        std::cout << "[FLOW]: Background thread ID = " << std::this_thread::get_id() << std::endl;
         std::cout << "------------------------------------------" << std::endl;
     }
 };
 
 int main() 
 {
-    setlocale(LC_ALL, "Russian");
-
     // 2. Инициализация
     auto _timer = std::make_shared<Timer>();
     ThreadTimer timerController(_timer);
@@ -33,14 +31,14 @@ int main()
     // Теперь система "ожила" и ждет появления таймеров.
     timerController.Start(100);
 
-    std::cout << "Система запущена. Основной поток ID: " << std::this_thread::get_id() << std::endl;
+    std::cout << "System started. Main thread ID: " << std::this_thread::get_id() << std::endl;
 
     // 4. Подготовка параметров для циклического таймера
     DateTime start = DateTime::Now();
     DateTime firstTrigger = start + TimeSpan::FromSeconds(5); // Первая сработка через 5 сек
 
     // Создаем объект с нашей логикой
-    auto myTask = std::make_shared<NotificationTask>("Пора сделать разминку!");
+    auto myTask = std::make_shared<NotificationTask>("Time for a warm-up!");
 
     // 5. Регистрация таймера в системе
     // CreateTimer возвращает ID, по которому мы сможем управлять этим конкретным таймером
@@ -53,7 +51,7 @@ int main()
 
     // 6. Активация таймера (после создания он всегда на паузе для безопасности)
     timerController.StartTimer(taskID);
-    std::cout << "Таймер [HealthCheck] создан с ID: " << taskID << ". Ждем 5 секунд..." << std::endl;
+    std::cout << "Timer [HealthCheck] created with ID: " << taskID << ". Waiting 5 seconds..." << std::endl;
 
     // Имитация работы основного потока
     for (int i = 0; i < 10; ++i) {

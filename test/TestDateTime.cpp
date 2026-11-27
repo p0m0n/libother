@@ -177,7 +177,6 @@ static void TestsDateTime()
 
 int main() 
 {
-    setlocale(LC_ALL, "Russian");
     TestsDateTime();
     std::cout << "\n" << std::endl;
     PrintAllFormats();
@@ -186,15 +185,15 @@ int main()
     DateTime dt2;
     {
         // Тест оператора ввода.
-        std::cout << "\nВведите время (hh:mm:ss): ";
+        std::cout << "\nEnter the time (hh:mm:ss): ";
         if (!(std::cin >> dt2))
         {
-            std::cerr << "Ошибка: Неверный формат времени!" << std::endl;
+            std::cerr << "Error: Invalid time format!" << std::endl;
             std::cin.clear(); // Сброс состояния ошибки
             std::cin.ignore(1000, '\n'); // Очистка буфера
         }
 
-        std::cout << "\nЕсли не указана дата, то берется текущая дата.\n";
+        std::cout << "\nIf no date is specified, the current date is used.\n";
         // Тест оператора вывода.
         std::cout << dt2 << std::endl;
     }

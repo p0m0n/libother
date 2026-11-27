@@ -50,7 +50,7 @@ namespace
     // 1. Тест конструкторов, копирования и перемещения.
     void TestConstructorsAndOwnership()
     {
-        std::cout << "\n=== 1. Конструкторы, копирование и перемещение ===\n";
+        std::cout << "\n=== 1. Constructors, copying, and moving ===\n";
 
         // Конструктор по умолчанию
         ByteBuffer defBuf;
@@ -119,7 +119,7 @@ namespace
     // 2. Тест управления памятью и курсорами.
     void TestMemoryAndCursors()
     {
-        std::cout << "\n=== 2. Управление памятью и курсорами ===\n";
+        std::cout << "\n=== 2. Memory and cursor management ===\n";
 
         ByteBuffer buf(16);
         buf.SetByteOrder(ByteOrder::BigEndian);
@@ -167,7 +167,7 @@ namespace
     // 3. Тест записи/чтения скаляров, Peek, WriteAt и порядка байт (Endianness).
     void TestScalarsAndEndianness()
     {
-        std::cout << "\n=== 3. Скаляры, Peek, WriteAt и порядок байт ===\n";
+        std::cout << "\n=== 3. Scalars, Peek, WriteAt, and byte order ===\n";
 
         // LittleEndian проверка раскладки байтов
         ByteBuffer le(64, ByteOrder::LittleEndian);
@@ -239,7 +239,7 @@ namespace
     // 4. Тест сырых байтов, WriteBuffer, WriteBytesAt и Skip.
     void TestRawBytesAndSkip()
     {
-        std::cout << "\n=== 4. Сырые байты, WriteBuffer, WriteBytesAt, Skip ===\n";
+        std::cout << "\n=== 4. Raw bytes, WriteBuffer, WriteBytesAt, Skip ===\n";
 
         ByteBuffer buf;
         const uint8_t src[] = { 1, 2, 3, 4, 5 };
@@ -286,7 +286,7 @@ namespace
     // 5. Тест строковых операций и валидации UTF-8.
     void TestStringsAndUtf8()
     {
-        std::cout << "\n=== 5. Строки (Raw, CString, LengthPrefixed) и UTF-8 ===\n";
+        std::cout << "\n=== 5. Strings (Raw, CString, LengthPrefixed) and UTF-8 ===\n";
 
         ByteBuffer buf;
         // Явные UTF-8 байты ("Привет! ASCII 123" и "Prefixed_тест"), чтобы тест не зависел от /utf-8 в MSVC (CP1251).
@@ -341,7 +341,7 @@ namespace
     // 6. Тест побитовой упаковки и распаковки.
     void TestBitPacking()
     {
-        std::cout << "\n=== 6. Побитовая упаковка / распаковка ===\n";
+        std::cout << "\n=== 6. Bitwise packing / unpacking ===\n";
 
         ByteBuffer buf;
         buf.WriteBit(true);
@@ -388,7 +388,7 @@ namespace
     // 7. Тест всех потоковых операторов << и >>.
     void TestStreamOperators()
     {
-        std::cout << "\n=== 7. Потоковые операторы << и >> ===\n";
+        std::cout << "\n=== 7. Stream operators << and >> ===\n";
 
         ByteBuffer buf(256, ByteOrder::BigEndian);
         const char* nullCStr = nullptr;
@@ -427,7 +427,7 @@ namespace
     // 8. Тест индексации operator[] и диагностических методов.
     void TestIndexingAndDiagnostics()
     {
-        std::cout << "\n=== 8. Индексация operator[] и диагностика ===\n";
+        std::cout << "\n=== 8. Indexing with operator[] and diagnostics ===\n";
 
         ByteBuffer emptyBuf;
         ReportTest("Diagnostics on empty buffer (Hex/Dec/Ascii empty)",
@@ -461,8 +461,6 @@ namespace
 
 int main()
 {
-	setlocale(LC_ALL, "Russian");
-	
     std::cout << "====================================================================\n";
     std::cout << "                   ByteBuffer Global Test Suite                     \n";
     std::cout << "====================================================================\n";
@@ -477,8 +475,8 @@ int main()
     TestIndexingAndDiagnostics();
 
     std::cout << "\n====================================================================\n";
-    std::cout << "ИТОГО: " << g_passedTests << " / " << g_totalTests << " пройдено, "
-              << g_failedTests << " провалено -> "
+    std::cout << "TOTAL: " << g_passedTests << " / " << g_totalTests << " completed, "
+              << g_failedTests << " failed -> "
               << (g_failedTests == 0 ? "[  OK  ]" : "[ FAIL ]") << std::endl;
     std::cout << "====================================================================\n";
 

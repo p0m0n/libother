@@ -28,7 +28,7 @@
 #   include <fcntl.h>
 #   include <errno.h>
 #   include <string.h>
-#   include <poll.h>
+#   include <sys/poll.h>
 #endif
 
 

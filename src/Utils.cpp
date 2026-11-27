@@ -12,7 +12,7 @@ namespace other
     }
 	
 	// Переключает кодовую страницу консоли на UTF-8 на Windows (на Linux не требуется).
-    void utils::utf8::InitConsoleUtf8() noexcept
+    void utils::InitConsoleUtf8() noexcept
     {
 #if LIBOTHER_PLATFORM == LIBOTHER_PLATFORM_WINDOWS
         ::SetConsoleOutputCP(CP_UTF8);
